@@ -1,13 +1,15 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Upload, Calendar, Users, Settings, BarChart3 } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
+import { ScheduleUpload } from '@/components/ScheduleUpload'
 
 export default function AdminScreen() {
   const { isAdmin } = useAuth()
+  const [showScheduleUpload, setShowScheduleUpload] = useState(false)
 
   if (!isAdmin) {
     return (
@@ -53,7 +55,10 @@ export default function AdminScreen() {
 
         {/* Admin Actions */}
         <View style={styles.actionsGrid}>
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => setShowScheduleUpload(!showScheduleUpload)}
+          >
             <Card style={styles.actionCardInner}>
               <Upload size={32} color={Colors.primary} />
               <Text style={styles.actionTitle}>Import Schedule</Text>
@@ -93,6 +98,9 @@ export default function AdminScreen() {
             </Card>
           </TouchableOpacity>
         </View>
+
+        {/* Schedule Upload Component */}
+        {showScheduleUpload && <ScheduleUpload />}
 
         {/* Recent Activity */}
         <Card style={styles.activityCard}>

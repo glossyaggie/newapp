@@ -1,179 +1,201 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+// Setup type definitions for built-in Supabase Runtime APIs
+import "https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts"
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-serve(async (req) => {
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+)
+
+interface CSVRow {
+  title: string
+  instructor: string
+  date: string
+  day: string
+  start_time: string
+  end_time: string
+  capacity: string
+}
+
+function parseCSV(csvText: string): CSVRow[] {
+  const lines = csvText.trim().split('\n')
+  const headers = lines[0].split(',').map(h => h.trim())
+  
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim())
+    const row: any = {}
+    
+    headers.forEach((header, index) => {
+      row[header] = values[index] || ''
+    })
+    
+    return row as CSVRow
+  }).filter(row => row.title && row.instructor) // Filter out empty rows
+}
+
+function parseTime(timeStr: string): string {
+  // Convert "6:00 AM" to "06:00:00"
+  const [time, period] = timeStr.split(' ')
+  let [hours, minutes] = time.split(':')
+  
+  let hour24 = parseInt(hours)
+  if (period?.toUpperCase() === 'PM' && hour24 !== 12) {
+    hour24 += 12
+  } else if (period?.toUpperCase() === 'AM' && hour24 === 12) {
+    hour24 = 0
+  }
+  
+  return `${hour24.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}:00`
+}
+
+function parseDate(dateStr: string): string {
+  // Convert "2025/08/25" to "2025-08-25"
+  return dateStr.replace(/\//g, '-')
+}
+
+function calculateDuration(startTime: string, endTime: string): number {
+  const start = new Date(`2000-01-01T${startTime}`)
+  const end = new Date(`2000-01-01T${endTime}`)
+  return Math.round((end.getTime() - start.getTime()) / (1000 * 60)) // minutes
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { csv_data, user_email } = await req.json()
-
-    // Check if user is authorized
-    const allowedEmails = Deno.env.get('SCHEDULE_IMPORT_ALLOWED_EMAILS')?.split(',') || []
-    if (!allowedEmails.includes(user_email)) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 403,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    // Get the user from the Authorization header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('No authorization header')
     }
 
-    // Initialize Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
     )
 
-    // Get user ID from email
-    const { data: userData, error: userError } = await supabase.auth.admin.getUserByEmail(user_email)
-    if (userError || !userData.user) {
-      throw new Error('User not found')
+    if (authError || !user) {
+      throw new Error('Unauthorized')
     }
 
-    const userId = userData.user.id
+    // Check if user is admin
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
+    if (profile?.role !== 'admin') {
+      throw new Error('Admin access required')
+    }
+
+    const { csvData, replaceExisting = false } = await req.json()
+    
+    if (!csvData) {
+      throw new Error('CSV data is required')
+    }
+
+    console.log('📊 Processing CSV schedule import...')
+    
     // Parse CSV data
-    const lines = csv_data.trim().split('\n')
-    const headers = lines[0].split(',').map((h: string) => h.trim().toLowerCase())
+    const rows = parseCSV(csvData)
+    console.log(`📋 Parsed ${rows.length} rows from CSV`)
     
-    const requiredHeaders = ['title', 'instructor', 'date', 'start_time', 'end_time', 'capacity']
-    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h))
-    
-    if (missingHeaders.length > 0) {
-      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`)
+    if (rows.length === 0) {
+      throw new Error('No valid rows found in CSV')
     }
 
-    const classes = []
-    const errors = []
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map((v: string) => v.trim())
+    // If replaceExisting is true, delete existing classes for the date range
+    if (replaceExisting && rows.length > 0) {
+      const dates = [...new Set(rows.map(row => parseDate(row.date)))]
+      console.log(`🗑️ Replacing existing classes for dates: ${dates.join(', ')}`)
       
-      if (values.length !== headers.length) {
-        errors.push(`Row ${i + 1}: Column count mismatch`)
-        continue
-      }
-
-      const classData: any = {}
-      headers.forEach((header, index) => {
-        classData[header] = values[index]
-      })
-
-      // Validate and transform data
-      try {
-        const classRecord = {
-          title: classData.title,
-          instructor: classData.instructor,
-          date: classData.date, // Should be YYYY-MM-DD format
-          start_time: classData.start_time, // Should be HH:MM format
-          end_time: classData.end_time, // Should be HH:MM format
-          capacity: parseInt(classData.capacity) || 20,
-          duration_min: classData.duration_min ? parseInt(classData.duration_min) : 60,
-          heat_c: classData.heat_c ? parseInt(classData.heat_c) : null,
-          level: classData.level || null,
-          notes: classData.notes || null,
-          created_by: userId
-        }
-
-        // Validate date format
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(classRecord.date)) {
-          throw new Error('Invalid date format (use YYYY-MM-DD)')
-        }
-
-        // Validate time format
-        if (!/^\d{2}:\d{2}$/.test(classRecord.start_time) || !/^\d{2}:\d{2}$/.test(classRecord.end_time)) {
-          throw new Error('Invalid time format (use HH:MM)')
-        }
-
-        classes.push(classRecord)
-      } catch (error) {
-        errors.push(`Row ${i + 1}: ${error.message}`)
+      const { error: deleteError } = await supabase
+        .from('class_schedule')
+        .delete()
+        .in('date', dates)
+      
+      if (deleteError) {
+        console.error('Error deleting existing classes:', deleteError)
+        throw new Error(`Failed to delete existing classes: ${deleteError.message}`)
       }
     }
-
-    if (errors.length > 0) {
-      return new Response(
-        JSON.stringify({ error: 'Validation errors', details: errors }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Upsert classes (idempotent by date + title + start_time)
-    const results = {
-      inserted: 0,
-      updated: 0,
-      errors: []
-    }
-
-    for (const classRecord of classes) {
-      try {
-        // Check if class already exists
-        const { data: existing } = await supabase
-          .from('class_schedule')
-          .select('id')
-          .eq('date', classRecord.date)
-          .eq('title', classRecord.title)
-          .eq('start_time', classRecord.start_time)
-          .single()
-
-        if (existing) {
-          // Update existing class
-          const { error } = await supabase
-            .from('class_schedule')
-            .update(classRecord)
-            .eq('id', existing.id)
-
-          if (error) throw error
-          results.updated++
-        } else {
-          // Insert new class
-          const { error } = await supabase
-            .from('class_schedule')
-            .insert(classRecord)
-
-          if (error) throw error
-          results.inserted++
-        }
-      } catch (error) {
-        results.errors.push(`${classRecord.title} on ${classRecord.date}: ${error.message}`)
+    
+    // Transform CSV rows to database format
+    const classesToInsert = rows.map(row => {
+      const startTime = parseTime(row.start_time)
+      const endTime = parseTime(row.end_time)
+      const duration = calculateDuration(startTime, endTime)
+      
+      return {
+        title: row.title,
+        instructor: row.instructor,
+        date: parseDate(row.date),
+        start_time: startTime,
+        end_time: endTime,
+        capacity: parseInt(row.capacity) || 24,
+        duration_min: duration,
+        created_by: user.id
       }
+    })
+    
+    console.log(`💾 Inserting ${classesToInsert.length} classes...`)
+    
+    // Insert classes in batches to avoid timeout
+    const batchSize = 50
+    let insertedCount = 0
+    
+    for (let i = 0; i < classesToInsert.length; i += batchSize) {
+      const batch = classesToInsert.slice(i, i + batchSize)
+      
+      const { data, error } = await supabase
+        .from('class_schedule')
+        .insert(batch)
+        .select('id')
+      
+      if (error) {
+        console.error('Error inserting batch:', error)
+        throw new Error(`Failed to insert classes: ${error.message}`)
+      }
+      
+      insertedCount += data?.length || 0
+      console.log(`✅ Inserted batch ${Math.floor(i/batchSize) + 1}, total: ${insertedCount}`)
     }
-
+    
+    console.log(`🎉 Schedule import completed! Inserted ${insertedCount} classes`)
+    
     return new Response(
-      JSON.stringify({
+      JSON.stringify({ 
         success: true,
-        results: {
-          total_processed: classes.length,
-          inserted: results.inserted,
-          updated: results.updated,
-          errors: results.errors
-        }
+        message: `Successfully imported ${insertedCount} classes`,
+        insertedCount,
+        replacedExisting: replaceExisting
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      }
+      },
     )
-
   } catch (error) {
-    console.error('Schedule import error:', error)
+    console.error('❌ Schedule import error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
-      }
+      },
     )
   }
 })
