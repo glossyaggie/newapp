@@ -1,11 +1,12 @@
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { View, Text, StyleSheet, Alert, Platform, TextInput, Pressable } from 'react-native'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { Upload, CheckCircle, AlertCircle, FileText, File } from 'lucide-react-native'
+import { Upload, CheckCircle, AlertCircle, FileText, File, Copy } from 'lucide-react-native'
+import * as DocumentPicker from 'expo-document-picker'
 
 interface UploadResult {
   success: boolean
@@ -20,82 +21,96 @@ export function ScheduleUpload() {
   const [csvContent, setCsvContent] = useState('')
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [replaceExisting, setReplaceExisting] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFileName, setSelectedFileName] = useState('')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploadMethod, setUploadMethod] = useState<'file' | 'paste'>('file')
 
-  const handleFileRead = (file: File) => {
-    console.log('Reading file:', file.name, 'Type:', file.type)
-    setSelectedFileName(file.name)
-    
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const content = event.target?.result as string
-      console.log('File content loaded, length:', content.length)
-      setCsvContent(content)
-      setUploadResult(null)
-    }
-    reader.onerror = (error) => {
-      console.error('File read error:', error)
-      Alert.alert('Error', 'Failed to read the selected file')
-    }
-    reader.readAsText(file)
-  }
-
-  const handleFileSelect = () => {
-    console.log('File select clicked, platform:', Platform.OS)
-    
-    if (Platform.OS === 'web') {
-      if (fileInputRef.current) {
-        fileInputRef.current.click()
-      }
-    } else {
-      // For mobile, show prompt to paste CSV content
-      Alert.prompt(
-        'Paste CSV Content',
-        'Paste your CSV data here (including headers):',
-        (text) => {
-          if (text) {
-            setCsvContent(text)
-            setUploadResult(null)
-            setSelectedFileName('Pasted content')
-          }
-        },
-        'plain-text',
-        '',
-        'default'
-      )
-    }
-  }
-
-  const handleDragOver = (e: any) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault()
-      setIsDragOver(true)
-    }
-  }
-
-  const handleDragLeave = (e: any) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault()
-      setIsDragOver(false)
-    }
-  }
-
-  const handleDrop = (e: any) => {
-    if (Platform.OS === 'web') {
-      e.preventDefault()
-      setIsDragOver(false)
+  const handleFileUpload = async () => {
+    try {
+      console.log('Starting file upload, platform:', Platform.OS)
       
-      const files = e.dataTransfer.files
-      if (files.length > 0) {
-        const file = files[0]
-        if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-          handleFileRead(file)
-        } else {
-          Alert.alert('Error', 'Please select a CSV file')
+      if (Platform.OS === 'web') {
+        // Web file picker
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.csv,text/csv'
+        input.onchange = async (e: any) => {
+          const file = e.target.files?.[0]
+          if (file) {
+            console.log('File selected:', file.name, 'Type:', file.type)
+            setSelectedFileName(file.name)
+            
+            const reader = new FileReader()
+            reader.onload = (event) => {
+              const content = event.target?.result as string
+              console.log('File content loaded, length:', content.length)
+              setCsvContent(content)
+              setUploadResult(null)
+            }
+            reader.onerror = (error) => {
+              console.error('File read error:', error)
+              Alert.alert('Error', 'Failed to read the selected file')
+            }
+            reader.readAsText(file)
+          }
+        }
+        input.click()
+      } else {
+        // Mobile file picker using expo-document-picker
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'text/csv',
+          copyToCacheDirectory: true,
+        })
+        
+        if (!result.canceled && result.assets[0]) {
+          const asset = result.assets[0]
+          console.log('File selected:', asset.name, 'URI:', asset.uri)
+          setSelectedFileName(asset.name)
+          
+          // Read file content
+          const response = await fetch(asset.uri)
+          const content = await response.text()
+          console.log('File content loaded, length:', content.length)
+          setCsvContent(content)
+          setUploadResult(null)
         }
       }
+    } catch (error) {
+      console.error('File upload error:', error)
+      Alert.alert('Error', 'Failed to select or read the file')
+    }
+  }
+
+  const handlePasteContent = () => {
+    Alert.prompt(
+      'Paste CSV Content',
+      'Paste your CSV data here (including headers):',
+      (text) => {
+        if (text) {
+          setCsvContent(text)
+          setUploadResult(null)
+          setSelectedFileName('Pasted content')
+        }
+      },
+      'plain-text',
+      csvContent,
+      'default'
+    )
+  }
+
+  const copySampleData = () => {
+    const sampleData = `title,instructor,date,day,start_time,end_time,capacity
+HOT HIIT PILATES,Mel Lawson,2025/08/29,Thursday,6:00 AM,7:00 AM,24
+YOGA FLOW,Sarah Johnson,2025/08/29,Thursday,7:30 AM,8:30 AM,20
+STRENGTH TRAINING,Mike Davis,2025/08/29,Thursday,6:00 PM,7:00 PM,16
+PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
+    
+    if (Platform.OS === 'web') {
+      navigator.clipboard.writeText(sampleData)
+      Alert.alert('Copied!', 'Sample CSV data copied to clipboard')
+    } else {
+      setCsvContent(sampleData)
+      setSelectedFileName('Sample data')
+      Alert.alert('Sample Loaded', 'Sample CSV data loaded')
     }
   }
 
@@ -170,8 +185,7 @@ export function ScheduleUpload() {
       </View>
 
       <Text style={styles.description}>
-        Upload your weekly class schedule via CSV file. The CSV should have columns:
-        title, instructor, date, day, start_time, end_time, capacity
+        Upload your weekly class schedule via CSV file. The CSV should have columns: title, instructor, date, day, start_time, end_time, capacity
       </Text>
 
       <View style={styles.formatExample}>
@@ -185,63 +199,57 @@ export function ScheduleUpload() {
         <View style={styles.sampleHeader}>
           <FileText size={16} color="#007AFF" />
           <Text style={styles.sampleTitle}>Sample CSV Data</Text>
-          <Button
-            title="Copy Sample"
-            onPress={() => {
-              const sampleData = `title,instructor,date,day,start_time,end_time,capacity
-HOT HIIT PILATES,Mel Lawson,2025/08/29,Thursday,6:00 AM,7:00 AM,24
-YOGA FLOW,Sarah Johnson,2025/08/29,Thursday,7:30 AM,8:30 AM,20
-STRENGTH TRAINING,Mike Davis,2025/08/29,Thursday,6:00 PM,7:00 PM,16
-PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
-              if (Platform.OS === 'web') {
-                navigator.clipboard.writeText(sampleData)
-                Alert.alert('Copied!', 'Sample CSV data copied to clipboard')
-              } else {
-                setCsvContent(sampleData)
-                Alert.alert('Sample Loaded', 'Sample CSV data loaded into the text area')
-              }
-            }}
-            variant="outline"
-            style={styles.copyButton}
-          />
+          <Pressable style={styles.copyButton} onPress={copySampleData}>
+            <Copy size={16} color="#007AFF" />
+            <Text style={styles.copyButtonText}>Copy Sample</Text>
+          </Pressable>
         </View>
       </View>
 
-      {Platform.OS === 'web' && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) {
-              handleFileRead(file)
-            }
-          }}
-        />
-      )}
+      <View style={styles.methodSelector}>
+        <Text style={styles.methodTitle}>Choose upload method:</Text>
+        <View style={styles.methodButtons}>
+          <Pressable
+            style={[
+              styles.methodButton,
+              uploadMethod === 'file' && styles.methodButtonActive
+            ]}
+            onPress={() => setUploadMethod('file')}
+          >
+            <File size={20} color={uploadMethod === 'file' ? '#007AFF' : '#6B7280'} />
+            <Text style={[
+              styles.methodButtonText,
+              uploadMethod === 'file' && styles.methodButtonTextActive
+            ]}>Upload File</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.methodButton,
+              uploadMethod === 'paste' && styles.methodButtonActive
+            ]}
+            onPress={() => setUploadMethod('paste')}
+          >
+            <FileText size={20} color={uploadMethod === 'paste' ? '#007AFF' : '#6B7280'} />
+            <Text style={[
+              styles.methodButtonText,
+              uploadMethod === 'paste' && styles.methodButtonTextActive
+            ]}>Paste Content</Text>
+          </Pressable>
+        </View>
+      </View>
 
-      {Platform.OS === 'web' ? (
-        <div
-          style={{
-            ...styles.dropZone,
-            ...(isDragOver && styles.dropZoneActive),
-            ...(csvContent && styles.dropZoneWithContent),
-            cursor: 'pointer'
-          }}
-          onClick={handleFileSelect}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+      {uploadMethod === 'file' ? (
+        <Pressable
+          style={[
+            styles.dropZone,
+            csvContent && styles.dropZoneWithContent
+          ]}
+          onPress={handleFileUpload}
         >
           <View style={styles.dropZoneContent}>
-            <File size={32} color={isDragOver ? "#007AFF" : "#6B7280"} />
-            <Text style={[
-              styles.dropZoneTitle,
-              isDragOver && styles.dropZoneTitleActive
-            ]}>
-              {isDragOver ? 'Drop CSV file here' : 'Click to select CSV file or drag & drop'}
+            <File size={32} color="#6B7280" />
+            <Text style={styles.dropZoneTitle}>
+              {Platform.OS === 'web' ? 'Click to select CSV file' : 'Tap to select CSV file'}
             </Text>
             {selectedFileName && (
               <Text style={styles.selectedFileName}>
@@ -252,23 +260,23 @@ PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
               Supports .csv files up to 10MB
             </Text>
           </View>
-        </div>
+        </Pressable>
       ) : (
         <Pressable
           style={[
             styles.dropZone,
             csvContent && styles.dropZoneWithContent
           ]}
-          onPress={handleFileSelect}
+          onPress={handlePasteContent}
         >
           <View style={styles.dropZoneContent}>
-            <File size={32} color="#6B7280" />
+            <FileText size={32} color="#6B7280" />
             <Text style={styles.dropZoneTitle}>
               Tap to paste CSV content
             </Text>
             {selectedFileName && (
               <Text style={styles.selectedFileName}>
-                Selected: {selectedFileName}
+                Content: {selectedFileName}
               </Text>
             )}
             <Text style={styles.dropZoneSubtitle}>
@@ -278,47 +286,38 @@ PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
         </Pressable>
       )}
 
-      <View style={styles.textAreaContainer}>
-        <Text style={styles.textAreaLabel}>
-          {Platform.OS === 'web' ? 'Or paste your CSV content here:' : 'Paste your CSV content here:'}
-        </Text>
-        <View style={styles.textAreaWrapper}>
-          {Platform.OS === 'web' ? (
-            <TextInput
-              style={styles.textAreaInput}
-              value={csvContent}
-              onChangeText={(text) => {
-                setCsvContent(text)
-                setUploadResult(null)
-              }}
-              placeholder="Paste your CSV content here..."
-              multiline
-              textAlignVertical="top"
-            />
-          ) : (
-            <Text 
-              style={styles.textArea}
-              onPress={() => {
-                Alert.prompt(
-                  'Paste CSV Content',
-                  'Paste your CSV data here:',
-                  (text) => {
-                    if (text) {
-                      setCsvContent(text)
-                      setUploadResult(null)
-                    }
-                  },
-                  'plain-text',
-                  csvContent,
-                  'default'
-                )
-              }}
-            >
-              {csvContent || 'Tap to paste CSV content...'}
-            </Text>
-          )}
+      {uploadMethod === 'paste' && (
+        <View style={styles.textAreaContainer}>
+          <Text style={styles.textAreaLabel}>
+            CSV Content:
+          </Text>
+          <View style={styles.textAreaWrapper}>
+            {Platform.OS === 'web' ? (
+              <TextInput
+                style={styles.textAreaInput}
+                value={csvContent}
+                onChangeText={(text) => {
+                  setCsvContent(text)
+                  setUploadResult(null)
+                  setSelectedFileName(text ? 'Manual input' : '')
+                }}
+                placeholder="Paste your CSV content here..."
+                multiline
+                textAlignVertical="top"
+              />
+            ) : (
+              <Pressable 
+                style={styles.textArea}
+                onPress={handlePasteContent}
+              >
+                <Text style={styles.textAreaPlaceholder}>
+                  {csvContent || 'Tap to paste CSV content...'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {csvContent && (
         <View style={styles.previewContainer}>
@@ -603,7 +602,64 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  },
+  copyButtonText: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  methodSelector: {
+    marginBottom: 16,
+  },
+  methodTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  methodButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  methodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  methodButtonActive: {
+    borderColor: '#007AFF',
+    backgroundColor: '#EBF8FF',
+  },
+  methodButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginLeft: 8,
+  },
+  methodButtonTextActive: {
+    color: '#007AFF',
+  },
+  textAreaPlaceholder: {
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#4B5563',
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 })
