@@ -1,15 +1,15 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Upload, Calendar, Users, Settings, BarChart3 } from 'lucide-react-native'
+import { Plus, Calendar, Users, Settings, BarChart3 } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
-import { ScheduleUpload } from '@/components/ScheduleUpload'
+import { AddClassForm } from '@/components/AddClassForm'
 
 export default function AdminScreen() {
   const { isAdmin } = useAuth()
-  const [showScheduleUpload, setShowScheduleUpload] = useState(false)
+  const [showAddClass, setShowAddClass] = useState(false)
 
   if (!isAdmin) {
     return (
@@ -57,12 +57,12 @@ export default function AdminScreen() {
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => setShowScheduleUpload(!showScheduleUpload)}
+            onPress={() => setShowAddClass(!showAddClass)}
           >
             <Card style={styles.actionCardInner}>
-              <Upload size={32} color={Colors.primary} />
-              <Text style={styles.actionTitle}>Import Schedule</Text>
-              <Text style={styles.actionSubtitle}>Upload CSV from Google Sheets</Text>
+              <Plus size={32} color={Colors.primary} />
+              <Text style={styles.actionTitle}>Add Class</Text>
+              <Text style={styles.actionSubtitle}>Create a new class for the schedule</Text>
             </Card>
           </TouchableOpacity>
 
@@ -99,8 +99,13 @@ export default function AdminScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Schedule Upload Component */}
-        {showScheduleUpload && <ScheduleUpload />}
+        {/* Add Class Form */}
+        {showAddClass && (
+          <AddClassForm 
+            onSuccess={() => setShowAddClass(false)}
+            onCancel={() => setShowAddClass(false)}
+          />
+        )}
 
         {/* Recent Activity */}
         <Card style={styles.activityCard}>
