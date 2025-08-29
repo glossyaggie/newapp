@@ -26,45 +26,71 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingWaiver, setLoadingWaiver] = useState<boolean>(true)
   const [waiverUrl, setWaiverUrl] = useState<string | null>(null)
-  const [signaturePath, setSignaturePath] = useState<string>('')
+
   const [isDrawing, setIsDrawing] = useState<boolean>(false)
   const pathRef = useRef<string>('')
   const currentPointRef = useRef<{ x: number; y: number } | null>(null)
+  const [strokePaths, setStrokePaths] = useState<string[]>([])
+  const currentStrokeRef = useRef<string>('')
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
 
     onPanResponderGrant: (evt) => {
       const { locationX, locationY } = evt.nativeEvent
-      currentPointRef.current = { x: locationX, y: locationY }
-      pathRef.current = `M${locationX},${locationY}`
-      setSignaturePath(pathRef.current)
+      // Ensure coordinates are within bounds
+      const x = Math.max(0, Math.min(locationX, SIGNATURE_WIDTH))
+      const y = Math.max(0, Math.min(locationY, SIGNATURE_HEIGHT))
+      
+      currentPointRef.current = { x, y }
+      currentStrokeRef.current = `M${x},${y}`
       setIsDrawing(true)
     },
 
     onPanResponderMove: (evt) => {
+      if (!isDrawing || !currentPointRef.current) return
+      
       const { locationX, locationY } = evt.nativeEvent
-      if (currentPointRef.current && isDrawing) {
-        pathRef.current += ` L${locationX},${locationY}`
-        setSignaturePath(pathRef.current)
-        currentPointRef.current = { x: locationX, y: locationY }
-      }
+      // Ensure coordinates are within bounds
+      const x = Math.max(0, Math.min(locationX, SIGNATURE_WIDTH))
+      const y = Math.max(0, Math.min(locationY, SIGNATURE_HEIGHT))
+      
+      // Add smooth curve using quadratic bezier
+      const prevX = currentPointRef.current.x
+      const prevY = currentPointRef.current.y
+      const midX = (prevX + x) / 2
+      const midY = (prevY + y) / 2
+      
+      currentStrokeRef.current += ` Q${prevX},${prevY} ${midX},${midY}`
+      currentPointRef.current = { x, y }
+      
+
     },
 
     onPanResponderRelease: () => {
+      if (isDrawing && currentStrokeRef.current) {
+        // Finalize the current stroke
+        const newPaths = [...strokePaths, currentStrokeRef.current]
+        setStrokePaths(newPaths)
+        currentStrokeRef.current = ''
+      }
       setIsDrawing(false)
+      currentPointRef.current = null
     },
   })
 
   const clearSignature = () => {
-    setSignaturePath('')
+    setStrokePaths([])
     pathRef.current = ''
+    currentStrokeRef.current = ''
     currentPointRef.current = null
+    setIsDrawing(false)
   }
 
   const handleSignWaiver = async () => {
-    if (!signaturePath.trim()) {
+    if (strokePaths.length === 0) {
       Alert.alert('Error', 'Please provide your signature')
       return
     }
@@ -76,7 +102,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
 
       const updateData: Database['public']['Tables']['profiles']['Update'] = {
         waiver_signed_at: new Date().toISOString(),
-        waiver_signature_data: signaturePath
+        waiver_signature_data: strokePaths.join(' ')
       }
       
       const { error } = await (supabase as any)
@@ -100,7 +126,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
           body: JSON.stringify({
             userId: user.data.user.id,
             userProfile,
-            signatureData: signaturePath
+            signatureData: strokePaths.join(' ')
           })
         })
         
@@ -203,19 +229,32 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
             >
               {Platform.OS !== 'web' ? (
                 <Svg width={SIGNATURE_WIDTH} height={SIGNATURE_HEIGHT}>
-                  <Path
-                    d={signaturePath}
-                    stroke={Colors.primary}
-                    strokeWidth={3}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  {strokePaths.map((path, index) => (
+                    <Path
+                      key={index}
+                      d={path}
+                      stroke={Colors.primary}
+                      strokeWidth={2.5}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                  {isDrawing && currentStrokeRef.current && (
+                    <Path
+                      d={currentStrokeRef.current}
+                      stroke={Colors.primary}
+                      strokeWidth={2.5}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
                 </Svg>
               ) : (
                 <View style={styles.webSignatureFallback}>
                   <Text style={styles.webSignatureText}>
-                    {signaturePath ? '✓ Signature captured' : 'Draw your signature here'}
+                    {strokePaths.length > 0 ? '✓ Signature captured' : 'Draw your signature here'}
                   </Text>
                 </View>
               )}
@@ -236,7 +275,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
           title="Sign Waiver"
           onPress={handleSignWaiver}
           loading={loading}
-          disabled={!signaturePath.trim()}
+          disabled={strokePaths.length === 0}
           style={styles.signButton}
         />
       </Card>
@@ -311,6 +350,7 @@ const styles = StyleSheet.create({
     width: SIGNATURE_WIDTH,
     height: SIGNATURE_HEIGHT,
     backgroundColor: Colors.white,
+    borderRadius: 8,
   },
   webSignatureFallback: {
     width: SIGNATURE_WIDTH,
