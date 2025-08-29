@@ -10,18 +10,37 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>
+    
+    // Set a timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      console.log('Auth initialization timeout - setting loading to false')
+      setLoading(false)
+      setError('Connection timeout. Please check your internet connection.')
+    }, 10000) // 10 second timeout
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchProfile(session.user.id)
-      } else {
+    supabase.auth.getSession()
+      .then(({ data: { session } }: { data: { session: Session | null } }) => {
+        clearTimeout(timeoutId)
+        console.log('Initial session loaded:', !!session)
+        setSession(session)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchProfile(session.user.id)
+        } else {
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId)
+        console.error('Error getting initial session:', err)
+        setError('Failed to connect. Please check your internet connection.')
         setLoading(false)
-      }
-    })
+      })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -39,11 +58,16 @@ export function useAuth() {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
+    console.log('Fetching profile for user:', userId)
     try {
+      setError(null)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -121,6 +145,7 @@ export function useAuth() {
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error)
+      setError('Failed to load profile. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -184,6 +209,7 @@ export function useAuth() {
     profile,
     session,
     loading,
+    error,
     signOut,
     forceRefresh,
     isAdmin,

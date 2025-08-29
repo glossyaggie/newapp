@@ -13,11 +13,21 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
 
 export default function HomeScreen() {
-  const { user, profile, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading, error: authError } = useAuth()
   const { activePass, hasLowCredits, isLoading: passesLoading } = usePasses()
 
   if (authLoading || (user && passesLoading)) {
     return <LoadingSpinner />
+  }
+
+  if (authError) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Unable to connect. Please check your internet connection and try again.</Text>
+        </View>
+      </SafeAreaView>
+    )
   }
 
   if (!user) {
@@ -218,6 +228,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   welcomeText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 24,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    padding: 20,
+  },
+  errorText: {
     fontSize: 16,
     color: Colors.textSecondary,
     textAlign: 'center' as const,
