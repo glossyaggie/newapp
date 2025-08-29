@@ -22,24 +22,51 @@ export function ScheduleUpload() {
   const [replaceExisting, setReplaceExisting] = useState(false)
 
   const handleFileSelect = () => {
+    console.log('File select clicked, platform:', Platform.OS)
+    
     if (Platform.OS === 'web') {
-      // Create file input for web
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = '.csv'
-      input.onchange = (e: any) => {
-        const file = e.target.files[0]
-        if (file) {
-          const reader = new FileReader()
-          reader.onload = (event) => {
-            const content = event.target?.result as string
-            setCsvContent(content)
-            setUploadResult(null)
+      try {
+        // Create file input for web
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.csv,text/csv'
+        input.style.display = 'none'
+        
+        input.onchange = (e: any) => {
+          console.log('File selected:', e.target.files[0])
+          const file = e.target.files[0]
+          if (file) {
+            console.log('File type:', file.type, 'File name:', file.name)
+            const reader = new FileReader()
+            reader.onload = (event) => {
+              const content = event.target?.result as string
+              console.log('File content loaded, length:', content.length)
+              setCsvContent(content)
+              setUploadResult(null)
+            }
+            reader.onerror = (error) => {
+              console.error('File read error:', error)
+              Alert.alert('Error', 'Failed to read the selected file')
+            }
+            reader.readAsText(file)
           }
-          reader.readAsText(file)
         }
+        
+        // Add to DOM temporarily to ensure it works
+        document.body.appendChild(input)
+        input.click()
+        
+        // Clean up after a short delay
+        setTimeout(() => {
+          if (document.body.contains(input)) {
+            document.body.removeChild(input)
+          }
+        }, 1000)
+        
+      } catch (error) {
+        console.error('File picker error:', error)
+        Alert.alert('Error', 'File picker not available. Please use the paste option below.')
       }
-      input.click()
     } else {
       // For mobile, show prompt to paste CSV content
       Alert.prompt(
@@ -146,34 +173,34 @@ export function ScheduleUpload() {
         style={styles.selectButton}
       />
 
-      {Platform.OS !== 'web' && (
-        <View style={styles.textAreaContainer}>
-          <Text style={styles.textAreaLabel}>Or paste your CSV content here:</Text>
-          <View style={styles.textAreaWrapper}>
-            <Text 
-              style={styles.textArea}
-              onPress={() => {
-                // For mobile, we'll show an alert to paste content
-                Alert.prompt(
-                  'Paste CSV Content',
-                  'Paste your CSV data here:',
-                  (text) => {
-                    if (text) {
-                      setCsvContent(text)
-                      setUploadResult(null)
-                    }
-                  },
-                  'plain-text',
-                  '',
-                  'default'
-                )
-              }}
-            >
-              {csvContent || 'Tap to paste CSV content...'}
-            </Text>
-          </View>
+      <View style={styles.textAreaContainer}>
+        <Text style={styles.textAreaLabel}>
+          {Platform.OS === 'web' ? 'Or paste your CSV content here:' : 'Paste your CSV content here:'}
+        </Text>
+        <View style={styles.textAreaWrapper}>
+          <Text 
+            style={styles.textArea}
+            onPress={() => {
+              // For mobile, we'll show an alert to paste content
+              Alert.prompt(
+                'Paste CSV Content',
+                'Paste your CSV data here:',
+                (text) => {
+                  if (text) {
+                    setCsvContent(text)
+                    setUploadResult(null)
+                  }
+                },
+                'plain-text',
+                csvContent,
+                'default'
+              )
+            }}
+          >
+            {csvContent || 'Tap to paste CSV content...'}
+          </Text>
         </View>
-      )}
+      </View>
 
       {csvContent && (
         <View style={styles.previewContainer}>
