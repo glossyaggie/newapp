@@ -12,13 +12,23 @@ interface AuthFormProps {
 export function AuthForm({ onSuccess }: AuthFormProps) {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
+  const [firstName, setFirstName] = useState<string>('')
+  const [lastName, setLastName] = useState<string>('')
+  const [phone, setPhone] = useState<string>('')
   const [isSignUp, setIsSignUp] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(false)
 
   const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields')
-      return
+    if (isSignUp) {
+      if (!email || !password || !firstName || !lastName || !phone) {
+        Alert.alert('Error', 'Please fill in all fields')
+        return
+      }
+    } else {
+      if (!email || !password) {
+        Alert.alert('Error', 'Please fill in all fields')
+        return
+      }
     }
 
     setLoading(true)
@@ -27,6 +37,14 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone,
+              full_name: `${firstName} ${lastName}`,
+            }
+          }
         })
         if (error) throw error
         Alert.alert('Success', 'Check your email for the confirmation link!')
@@ -58,6 +76,39 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
       </Text>
 
       <View style={styles.form}>
+        {isSignUp && (
+          <>
+            <View style={styles.nameRow}>
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
+                autoCapitalize="words"
+                autoComplete="given-name"
+                placeholderTextColor={Colors.textLight}
+              />
+              <TextInput
+                style={[styles.input, styles.nameInput]}
+                placeholder="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
+                autoCapitalize="words"
+                autoComplete="family-name"
+                placeholderTextColor={Colors.textLight}
+              />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Phone Number"
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              placeholderTextColor={Colors.textLight}
+            />
+          </>
+        )}
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -116,6 +167,13 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 16,
+  },
+  nameRow: {
+    flexDirection: 'row' as const,
+    gap: 12,
+  },
+  nameInput: {
+    flex: 1,
   },
   input: {
     borderWidth: 1,

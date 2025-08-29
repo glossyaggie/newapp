@@ -13,10 +13,13 @@ CREATE TYPE booking_status AS ENUM ('booked', 'cancelled', 'attended', 'no_show'
 -- Profiles table (extends auth.users)
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  first_name TEXT,
+  last_name TEXT,
   fullname TEXT,
   phone TEXT,
   role user_role DEFAULT 'user' NOT NULL,
   waiver_signed_at TIMESTAMPTZ,
+  waiver_signature_data TEXT, -- Base64 signature image
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -133,13 +136,19 @@ INSERT INTO pass_types (name, kind, credits, duration_days, stripe_price_id, sor
 
 -- Create a trigger to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $
 BEGIN
-  INSERT INTO profiles (id, fullname)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name');
+  INSERT INTO profiles (id, first_name, last_name, fullname, phone)
+  VALUES (
+    NEW.id, 
+    NEW.raw_user_meta_data->>'first_name',
+    NEW.raw_user_meta_data->>'last_name',
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'phone'
+  );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

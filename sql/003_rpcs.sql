@@ -453,4 +453,34 @@ BEGIN
     'success', true
   );
 END;
-$$;
+$;
+
+-- Function to sign waiver
+CREATE OR REPLACE FUNCTION sign_waiver(
+  signature_data TEXT
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $
+BEGIN
+  -- Update the user's profile with waiver signature
+  UPDATE profiles 
+  SET 
+    waiver_signed_at = NOW(),
+    waiver_signature_data = signature_data
+  WHERE id = auth.uid();
+
+  IF NOT FOUND THEN
+    RETURN json_build_object(
+      'success', false,
+      'error', 'profile_not_found'
+    );
+  END IF;
+
+  RETURN json_build_object(
+    'success', true,
+    'message', 'Waiver signed successfully'
+  );
+END;
+$;

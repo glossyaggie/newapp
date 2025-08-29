@@ -3,12 +3,14 @@ import { Home, Calendar, Wallet, Flame, Info, Settings } from 'lucide-react-nati
 import React from 'react'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
+import { AuthWrapper } from '@/components/AuthWrapper'
 
 export default function TabLayout() {
   const { isAdmin } = useAuth()
 
   return (
-    <Tabs
+    <AuthWrapper>
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors.light.tint,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
@@ -71,6 +73,7 @@ export default function TabLayout() {
           }}
         />
       )}
-    </Tabs>
+      </Tabs>
+    </AuthWrapper>
   )
 }
