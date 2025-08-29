@@ -52,12 +52,21 @@ export function useAuth() {
 
       if (error && error.code === 'PGRST116') {
         // Profile doesn't exist, create one
+        const { data: userData } = await supabase.auth.getUser()
+        const userMetadata = userData.user?.user_metadata || {}
+        
+        const profileData: Database['public']['Tables']['profiles']['Insert'] = {
+          id: userId,
+          first_name: userMetadata.first_name || null,
+          last_name: userMetadata.last_name || null,
+          fullname: userMetadata.full_name || null,
+          phone: userMetadata.phone || null,
+          role: 'user' as const,
+        }
+        
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .insert({
-            id: userId,
-            role: 'user' as const,
-          } as any)
+          .insert(profileData as any)
           .select()
           .single()
 

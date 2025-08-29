@@ -31,6 +31,8 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
     return (
       <WaiverForm 
         userProfile={{
+          first_name: profile.first_name || undefined,
+          last_name: profile.last_name || undefined,
           fullname: profile.fullname || undefined,
         }}
         onSuccess={refetchProfile}

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { View, Text, StyleSheet, Alert, ScrollView, Dimensions, Platform, PanResponder } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Colors } from '@/constants/colors'
@@ -69,7 +70,13 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
       const user = await supabase.auth.getUser()
       if (!user.data.user) throw new Error('User not authenticated')
 
-      const { error } = await supabase
+      // Use untyped client for this update to avoid type issues
+      const untypedClient = createClient(
+        process.env.EXPO_PUBLIC_SUPABASE_URL!,
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      
+      const { error } = await untypedClient
         .from('profiles')
         .update({
           waiver_signed_at: new Date().toISOString(),
