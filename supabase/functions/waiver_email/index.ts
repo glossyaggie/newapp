@@ -2,6 +2,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
+import { encode as b64encode, decode as b64decode } from "https://deno.land/std@0.224.0/encoding/base64.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -183,80 +184,76 @@ Deno.serve(async (req: Request) => {
       color: rgb(0.5, 0.5, 0.5),
     })
 
-    // Generate PDF bytes
-    const pdfBytes = await pdfDoc.save()
-    const pdfBase64 = btoa(String.fromCharCode(...pdfBytes))
-
-    // Send email using Resend (free tier: 3000 emails/month)
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')
-    console.log('RESEND_API_KEY configured:', !!resendApiKey)
-    
-    if (!resendApiKey) {
-      console.warn('RESEND_API_KEY not configured, skipping email')
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Waiver processed (email not configured)' 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Acme <onboarding@resend.dev>',
-        to: ['christopherascott@hotmail.com'],
-        subject: `New Waiver Signed - ${profile.fullname}`,
-        html: `
-          <h2>New Waiver Signed</h2>
-          <p><strong>Participant:</strong> ${profile.fullname}</p>
-          <p><strong>Email:</strong> ${profile.email}</p>
-          <p><strong>Phone:</strong> ${profile.phone}</p>
-          <p><strong>Signed At:</strong> ${new Date(profile.waiver_signed_at).toLocaleString()}</p>
-          <p>Please find the signed waiver attached as a PDF.</p>
-        `,
-        attachments: [{
-          filename: `waiver-${profile.fullname?.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`,
-          content: pdfBase64,
-          type: 'application/pdf',
-        }]
-      })
-    })
-
-    if (!emailResponse.ok) {
-      const errorText = await emailResponse.text()
-      console.error('Failed to send email. Status:', emailResponse.status)
-      console.error('Error response:', errorText)
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'Waiver processed but email failed to send',
-          emailError: errorText,
-          emailStatus: emailResponse.status
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const emailResult = await emailResponse.json()
-    console.log('Email sent successfully:', emailResult)
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Waiver processed and email sent successfully',
-        emailId: emailResult.id
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    // If you captured a data URL signature, embed it in the box
+    if (typeof signatureData === "string" && signatureData.startsWith("data:image/")) {
+      try {
+        const base64 = signatureData.replace(/^data:image\/(png|jpeg);base64,/, "");
+        const sigBytes = b64decode(base64);
+        const isPng = signatureData.includes("image/png");
+        const sigImage = isPng ? await pdfDoc.embedPng(sigBytes) : await pdfDoc.embedJpg(sigBytes);
+        const sigBox = { x: margin + 20, y: yPosition - 60, width: 300, height: 60 };
+        const scale = Math.min(sigBox.width / sigImage.width, sigBox.height / sigImage.height);
+        page.drawImage(sigImage, {
+          x: sigBox.x + 2, y: sigBox.y + 2,
+          width: sigImage.width * scale - 4, height: sigImage.height * scale - 4
+        });
+      } catch (error) {
+        console.log('Could not embed signature image:', error);
       }
-    )
+    }
+
+    // Generate PDF bytes and encode safely
+    const pdfBytes = await pdfDoc.save();
+    const pdfBase64 = b64encode(pdfBytes);
+
+    // Send email using Resend
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    if (!resendApiKey) {
+      return new Response(JSON.stringify({ ok: false, error: "Missing RESEND_API_KEY" }), {
+        status: 500, headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    const toList = ["christopherascott@hotmail.com", "formking11@gmail.com"];
+
+    const emailPayload = {
+      from: "onboarding@resend.dev",
+      to: toList,
+      subject: `New Waiver Signed - ${profile.fullname ?? "Customer"}`,
+      html: `
+        <h2>New Waiver Signed</h2>
+        <p><strong>Participant:</strong> ${profile.fullname ?? "N/A"}</p>
+        <p><strong>Email:</strong> ${profile.email ?? "N/A"}</p>
+        <p><strong>Phone:</strong> ${profile.phone ?? "N/A"}</p>
+        <p><strong>Signed At:</strong> ${new Date(profile.waiver_signed_at).toLocaleString()}</p>
+        <p>Signed waiver PDF attached.</p>
+      `,
+      attachments: [{
+        filename: `waiver-${(profile.fullname ?? "customer").replace(/\s+/g,"-")}.pdf`,
+        content: pdfBase64,
+        type: "application/pdf"
+      }]
+    };
+
+    const emailRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${resendApiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(emailPayload)
+    });
+
+    const resText = await emailRes.text();
+    if (!emailRes.ok) {
+      // Surface the exact error so we can see it
+      return new Response(JSON.stringify({ ok: false, stage: "resend", status: emailRes.status, body: resText }), {
+        status: 502, headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    let emailJson: any = {};
+    try { emailJson = JSON.parse(resText); } catch {}
+    return new Response(JSON.stringify({ ok: true, message: "Email sent", emailId: emailJson.id ?? null }), {
+      status: 200, headers: { "Content-Type": "application/json", ...corsHeaders }
+    });
 
   } catch (error) {
     console.error('Error processing waiver:', error)
