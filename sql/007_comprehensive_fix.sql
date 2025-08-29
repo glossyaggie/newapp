@@ -16,7 +16,7 @@ BEGIN
 END $$;
 
 -- 2. Refresh schema cache
-COMMENT ON TABLE profiles IS 'User profiles - refreshed ' || NOW();
+COMMENT ON TABLE profiles IS 'User profiles - refreshed';
 NOTIFY pgrst, 'reload schema';
 
 -- 3. Create/update the manual profile creation function
