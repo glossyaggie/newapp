@@ -22,7 +22,7 @@ export const STRIPE_PRICES = {
   'price_1S0vfBARpqh0Ut1ybKjeqehJ': {
     name: '5-Class Pack',
     credits: 5,
-    price: 100.00,
+    price: 0.50,
     mode: 'payment'
   },
   'price_1S0rHLARpqh0Ut1ybWGa3ocf': {
