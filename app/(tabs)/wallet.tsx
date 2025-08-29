@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { CreditCard, Plus, Clock, Check, RefreshCw } from 'lucide-react-native'
+import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { WalletCard } from '@/components/WalletCard'
@@ -10,40 +10,59 @@ import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
 import { createStripeCheckout } from '@/lib/api/passes'
+import { STRIPE_PRICES } from '@/constants/limits'
 import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
 
-// Price mapping to your actual Stripe price IDs
-const STRIPE_PRICE_IDS: Record<string, string> = {
-  'Single Class': 'price_1S0r9bARpqh0Ut1y4lHGGuAT',
-  '5-Class Pack': 'price_1S0vfBARpqh0Ut1ybKjeqehJ',
-  '10-Class Pack': 'price_1S0rHLARpqh0Ut1ybWGa3ocf',
-  '25-Class Pack': 'price_1S0rHqARpqh0Ut1ygGGaoqac',
-  'Weekly Unlimited': 'price_1S0rIRARpqh0Ut1yQkmz18xc',
-  'Monthly Unlimited': 'price_1S0rJlARpqh0Ut1yaeBEQVRf',
-  'VIP Monthly': 'price_1S0rKbARpqh0Ut1ydYwnH2Zy',
-  'VIP Yearly': 'price_1S0rLOARpqh0Ut1y2lbJ17g7',
-}
-
+// Get price directly from our constants
 function getPassPrice(passType: PassType): string {
-  // Use the price from the database (synced from Stripe)
+  // Find matching price from our constants
+  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
+    return data.name === passType.name
+  })
+  
+  if (priceEntry) {
+    return `${priceEntry[1].price.toFixed(2)}`
+  }
+  
+  // Fallback to database price if available
   const price = passType.price || 0
-  return `$${price.toFixed(2)}`
+  return `${price.toFixed(2)}`
 }
 
 function getPerClassPrice(passType: PassType): string {
+  // Find matching price from our constants
+  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
+    return data.name === passType.name
+  })
+  
+  if (priceEntry && 'credits' in priceEntry[1]) {
+    const perClass = priceEntry[1].price / priceEntry[1].credits
+    return `${perClass.toFixed(2)}`
+  }
+  
+  // Fallback
   const price = passType.price || 0
   if (passType.credits && passType.credits > 0) {
     const perClass = price / passType.credits
-    return `$${perClass.toFixed(2)}`
+    return `${perClass.toFixed(2)}`
   }
   return '$0.00'
 }
 
+// Get Stripe price ID for a pass type
+function getStripePriceId(passType: PassType): string | null {
+  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
+    return data.name === passType.name
+  })
+  
+  return priceEntry ? priceEntry[0] : passType.stripe_price_id
+}
+
 export default function WalletScreen() {
   const { user } = useAuth()
-  const { activePass, passTypes, hasLowCredits, isLoading, syncPrices, isSyncingPrices } = usePasses()
+  const { activePass, passTypes, hasLowCredits, isLoading } = usePasses()
   const [purchasingPassId, setPurchasingPassId] = useState<string | null>(null)
 
   const handlePurchasePass = async (passType: PassType) => {
@@ -52,7 +71,7 @@ export default function WalletScreen() {
       return
     }
 
-    const priceId = passType.stripe_price_id || STRIPE_PRICE_IDS[passType.name]
+    const priceId = getStripePriceId(passType)
     if (!priceId) {
       Alert.alert('Error', 'Price ID not found for this pass type')
       return
@@ -113,20 +132,6 @@ export default function WalletScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Wallet</Text>
-          <TouchableOpacity 
-            style={[styles.syncButton, isSyncingPrices && styles.syncButtonDisabled]} 
-            onPress={() => syncPrices()}
-            disabled={isSyncingPrices}
-          >
-            <RefreshCw 
-              size={16} 
-              color={isSyncingPrices ? Colors.textLight : Colors.primary} 
-              style={isSyncingPrices ? styles.spinning : undefined}
-            />
-            <Text style={[styles.syncText, isSyncingPrices && styles.syncTextDisabled]}>
-              {isSyncingPrices ? 'Syncing...' : 'Sync Prices'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <WalletCard
@@ -174,9 +179,6 @@ export default function WalletScreen() {
                   <Text style={styles.priceText}>
                     {getPassPrice(item)}
                   </Text>
-                  {(item.price === 0 || item.price === null) && (
-                    <Text style={styles.priceWarning}>Syncing price...</Text>
-                  )}
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
                       `${getPerClassPrice(item)} per class` : 
@@ -250,34 +252,7 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text,
   },
-  syncButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
-  },
-  syncText: {
-    fontSize: 14,
-    fontWeight: '600' as const,
-    color: Colors.primary,
-  },
-  syncTextDisabled: {
-    color: Colors.textLight,
-  },
-  syncButtonDisabled: {
-    opacity: 0.6,
-  },
-  spinning: {
-    // Add spinning animation if needed
-  },
-  priceWarning: {
-    fontSize: 10,
-    color: Colors.error,
-    fontWeight: '500' as const,
-  },
+
   section: {
     marginBottom: 20,
   },
