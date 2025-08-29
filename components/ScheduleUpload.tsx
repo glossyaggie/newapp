@@ -41,8 +41,20 @@ export function ScheduleUpload() {
       }
       input.click()
     } else {
-      // For mobile, you'd need to use expo-document-picker
-      Alert.alert('Mobile Upload', 'Please paste your CSV content directly or use the web version for file upload.')
+      // For mobile, show prompt to paste CSV content
+      Alert.prompt(
+        'Paste CSV Content',
+        'Paste your CSV data here (including headers):',
+        (text) => {
+          if (text) {
+            setCsvContent(text)
+            setUploadResult(null)
+          }
+        },
+        'plain-text',
+        '',
+        'default'
+      )
     }
   }
 
@@ -124,16 +136,43 @@ export function ScheduleUpload() {
       <View style={styles.formatExample}>
         <Text style={styles.exampleTitle}>Expected CSV Format:</Text>
         <Text style={styles.exampleText}>
-          title,instructor,date,day,start_time,end_time,capacity{"\n"}HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 PM,24
+          title,instructor,date,day,start_time,end_time,capacity{"\n"}HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 AM,24
         </Text>
       </View>
 
-      {Platform.OS === 'web' && (
-        <Button
-          title="Select CSV File"
-          onPress={handleFileSelect}
-          style={styles.selectButton}
-        />
+      <Button
+        title={Platform.OS === 'web' ? "Select CSV File" : "Paste CSV Content"}
+        onPress={handleFileSelect}
+        style={styles.selectButton}
+      />
+
+      {Platform.OS !== 'web' && (
+        <View style={styles.textAreaContainer}>
+          <Text style={styles.textAreaLabel}>Or paste your CSV content here:</Text>
+          <View style={styles.textAreaWrapper}>
+            <Text 
+              style={styles.textArea}
+              onPress={() => {
+                // For mobile, we'll show an alert to paste content
+                Alert.prompt(
+                  'Paste CSV Content',
+                  'Paste your CSV data here:',
+                  (text) => {
+                    if (text) {
+                      setCsvContent(text)
+                      setUploadResult(null)
+                    }
+                  },
+                  'plain-text',
+                  '',
+                  'default'
+                )
+              }}
+            >
+              {csvContent || 'Tap to paste CSV content...'}
+            </Text>
+          </View>
+        </View>
       )}
 
       {csvContent && (
@@ -321,5 +360,28 @@ const styles = StyleSheet.create({
     color: '#065F46',
     marginTop: 4,
     marginLeft: 28,
+  },
+  textAreaContainer: {
+    marginBottom: 16,
+  },
+  textAreaLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  textAreaWrapper: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+  },
+  textArea: {
+    padding: 12,
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#4B5563',
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 })
