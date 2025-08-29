@@ -1,5 +1,4 @@
 import { supabase } from '../supabase'
-import { Platform } from 'react-native'
 
 export interface ActivePass {
   remaining_credits: number
@@ -48,24 +47,24 @@ export async function createStripeCheckout(priceId: string, passTypeId: string) 
     throw new Error('User not authenticated')
   }
 
-  const response = await fetch('/api/create-checkout-session', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const { data, error } = await supabase.functions.invoke('create_checkout_session', {
+    body: {
       priceId,
       passTypeId,
       userId: user.id,
       userEmail: user.email,
-    }),
+    },
   })
 
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Failed to create checkout session: ${error}`)
+  if (error) {
+    console.error('❌ Error creating checkout session:', error)
+    throw new Error(`Failed to create checkout session: ${error.message}`)
   }
 
-  const { url } = await response.json()
-  return url
+  if (!data?.url) {
+    throw new Error('No checkout URL returned')
+  }
+
+  console.log('✅ Checkout session created successfully')
+  return data.url
 }
