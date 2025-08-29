@@ -206,7 +206,7 @@ export function ScheduleUpload() {
         <View style={styles.previewContainer}>
           <Text style={styles.previewTitle}>CSV Preview:</Text>
           <Text style={styles.previewText} numberOfLines={5}>
-            {csvContent.substring(0, 200)}...
+            {csvContent.substring(0, 200)}{csvContent.length > 200 ? '...' : ''}
           </Text>
           <Text style={styles.rowCount}>
             {csvContent.split('\n').length - 1} rows detected
