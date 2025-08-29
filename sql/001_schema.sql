@@ -140,11 +140,12 @@ CREATE INDEX idx_class_bookings_class_id ON class_bookings(class_id);
 CREATE INDEX idx_favorites_user_id ON favorites(user_id);
 
 -- Insert some default pass types
+-- IMPORTANT: Replace these with your actual Stripe Price IDs from your Stripe dashboard
 INSERT INTO pass_types (name, kind, credits, duration_days, stripe_price_id, sort_order) VALUES
-  ('Single Class', 'pack', 1, 30, 'price_single_class', 1),
-  ('8-Class Pack', 'pack', 8, 90, 'price_8_class_pack', 2),
-  ('16-Class Pack', 'pack', 16, 120, 'price_16_class_pack', 3),
-  ('Unlimited Monthly', 'unlimited', NULL, 30, 'price_unlimited_monthly', 4);
+  ('Single Class', 'pack', 1, 30, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_1', 1),
+  ('8-Class Pack', 'pack', 8, 90, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_2', 2),
+  ('16-Class Pack', 'pack', 16, 120, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_3', 3),
+  ('Unlimited Monthly', 'unlimited', NULL, 30, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_4', 4);
 
 -- Create a trigger to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION handle_new_user()
