@@ -119,6 +119,18 @@ CREATE TABLE device_tokens (
   PRIMARY KEY(user_id, token)
 );
 
+-- Waiver documents (for admin to upload and manage waivers)
+CREATE TABLE waiver_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL, -- The waiver text content
+  file_url TEXT, -- Optional: URL to PDF/image file
+  is_active BOOLEAN DEFAULT false NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Indexes for performance
 CREATE INDEX idx_user_passes_user_id ON user_passes(user_id);
 CREATE INDEX idx_user_passes_active ON user_passes(user_id, is_active, valid_until);

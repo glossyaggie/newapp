@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, Alert, ScrollView, Dimensions, Platform, PanResponder } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { waiverApi, WaiverDocument } from '@/lib/api/admin'
 
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Colors } from '@/constants/colors'
 import Svg, { Path } from 'react-native-svg'
 
@@ -22,6 +24,8 @@ const SIGNATURE_HEIGHT = 200
 
 export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   const [loading, setLoading] = useState<boolean>(false)
+  const [loadingWaiver, setLoadingWaiver] = useState<boolean>(true)
+  const [waiver, setWaiver] = useState<WaiverDocument | null>(null)
   const [signaturePath, setSignaturePath] = useState<string>('')
   const [isDrawing, setIsDrawing] = useState<boolean>(false)
   const pathRef = useRef<string>('')
@@ -91,7 +95,35 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
     }
   }
 
-  const waiverText = `
+  // Load waiver document on component mount
+  useEffect(() => {
+    loadWaiver()
+  }, [])
+
+  const loadWaiver = async () => {
+    try {
+      setLoadingWaiver(true)
+      const activeWaiver = await waiverApi.getActiveWaiver()
+      setWaiver(activeWaiver)
+    } catch (error) {
+      console.error('Error loading waiver:', error)
+      Alert.alert('Error', 'Failed to load waiver document')
+    } finally {
+      setLoadingWaiver(false)
+    }
+  }
+
+  const getWaiverText = () => {
+    if (waiver?.content) {
+      // Replace placeholder with user's name
+      return waiver.content.replace(
+        /\[USER_NAME\]/g, 
+        userProfile.fullname || `${userProfile.first_name} ${userProfile.last_name}`
+      )
+    }
+    
+    // Fallback waiver text if no waiver is found
+    return `
 LIABILITY WAIVER AND RELEASE
 
 I, ${userProfile.fullname || `${userProfile.first_name} ${userProfile.last_name}`}, acknowledge that I am voluntarily participating in hot yoga classes and activities at The Hot Temple.
@@ -105,16 +137,26 @@ I acknowledge that I am in good physical condition and have no medical condition
 I understand that this waiver is binding and that I am giving up substantial rights by signing it.
 
 By signing below, I acknowledge that I have read and understand this waiver and agree to its terms.
-  `
+    `
+  }
+
+  if (loadingWaiver) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LoadingSpinner size="large" />
+        <Text style={styles.loadingText}>Loading waiver...</Text>
+      </View>
+    )
+  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Card style={styles.card}>
-        <Text style={styles.title}>Liability Waiver</Text>
+        <Text style={styles.title}>{waiver?.title || 'Liability Waiver'}</Text>
         <Text style={styles.subtitle}>Please read and sign to continue</Text>
         
         <ScrollView style={styles.waiverTextContainer} showsVerticalScrollIndicator={true}>
-          <Text style={styles.waiverText}>{waiverText}</Text>
+          <Text style={styles.waiverText}>{getWaiverText()}</Text>
         </ScrollView>
 
         <View style={styles.signatureSection}>
@@ -247,5 +289,17 @@ const styles = StyleSheet.create({
   },
   signButton: {
     marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    backgroundColor: Colors.background,
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: Colors.textSecondary,
   },
 })

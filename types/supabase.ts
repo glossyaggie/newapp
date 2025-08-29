@@ -202,6 +202,38 @@ export type Database = {
           created_at?: string
         }
       }
+      waiver_documents: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          file_url: string | null
+          is_active: boolean
+          version: number
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          file_url?: string | null
+          is_active?: boolean
+          version?: number
+          created_by: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          file_url?: string | null
+          is_active?: boolean
+          version?: number
+          created_by?: string
+          created_at?: string
+        }
+      }
     }
     Functions: {
       book_class: {

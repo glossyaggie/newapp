@@ -11,6 +11,7 @@ ALTER TABLE pass_purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stripe_webhooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE waiver_documents ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can manage their own profile
 CREATE POLICY "Users can view own profile" ON profiles
@@ -101,3 +102,10 @@ CREATE POLICY "Service role can manage passes" ON user_passes
 -- Class bookings: service role can manage (from RPCs)
 CREATE POLICY "Service role can manage bookings" ON class_bookings
   FOR ALL USING (auth.role() = 'service_role');
+
+-- Waiver documents: everyone can read active ones, admins can manage
+CREATE POLICY "Anyone can view active waivers" ON waiver_documents
+  FOR SELECT USING (is_active = true);
+
+CREATE POLICY "Admins can manage waivers" ON waiver_documents
+  FOR ALL USING (is_admin());
