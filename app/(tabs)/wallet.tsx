@@ -27,14 +27,14 @@ const PASS_PRICES: Record<string, number> = {
 
 function getPassPrice(passType: PassType): string {
   const price = PASS_PRICES[passType.name] || 0
-  return `${price}`
+  return `$${price}`
 }
 
 function getPerClassPrice(passType: PassType): string {
   const price = PASS_PRICES[passType.name] || 0
   if (passType.credits && passType.credits > 0) {
     const perClass = Math.round(price / passType.credits)
-    return `${perClass}`
+    return `$${perClass}`
   }
   return '$0'
 }
