@@ -224,11 +224,12 @@ PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
 
       {Platform.OS === 'web' ? (
         <div
-          style={[
-            styles.dropZone,
-            isDragOver && styles.dropZoneActive,
-            csvContent && styles.dropZoneWithContent
-          ] as any}
+          style={{
+            ...styles.dropZone,
+            ...(isDragOver && styles.dropZoneActive),
+            ...(csvContent && styles.dropZoneWithContent),
+            cursor: 'pointer'
+          }}
           onClick={handleFileSelect}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
     borderWidth: 0,
-    outline: 'none',
+    ...(Platform.OS === 'web' && { outline: 'none' }),
   },
   sampleContainer: {
     backgroundColor: '#EBF8FF',
