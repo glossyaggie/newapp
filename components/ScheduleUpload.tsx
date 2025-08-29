@@ -581,7 +581,6 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
     borderWidth: 0,
-    ...(Platform.OS === 'web' && { outline: 'none' }),
   },
   sampleContainer: {
     backgroundColor: '#EBF8FF',
