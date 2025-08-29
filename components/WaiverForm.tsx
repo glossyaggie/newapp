@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { View, Text, StyleSheet, Alert, ScrollView, Dimensions, Platform, PanResponder } from 'react-native'
+import { View, Text, StyleSheet, Alert, ScrollView, Dimensions, Platform, PanResponder, Linking } from 'react-native'
 import { supabase } from '@/lib/supabase'
-import { waiverApi, WaiverDocument } from '@/lib/api/admin'
 
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -25,7 +24,7 @@ const SIGNATURE_HEIGHT = 200
 export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingWaiver, setLoadingWaiver] = useState<boolean>(true)
-  const [waiver, setWaiver] = useState<WaiverDocument | null>(null)
+  const [waiverUrl, setWaiverUrl] = useState<string | null>(null)
   const [signaturePath, setSignaturePath] = useState<string>('')
   const [isDrawing, setIsDrawing] = useState<boolean>(false)
   const pathRef = useRef<string>('')
@@ -84,6 +83,31 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
 
       if (error) throw error
 
+      // Send waiver email with signature
+      try {
+        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
+        const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
+        
+        const response = await fetch(`${supabaseUrl}/functions/v1/waiver_email`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.data.user.id,
+            userProfile,
+            signatureData: signaturePath
+          })
+        })
+        
+        if (!response.ok) {
+          console.warn('Failed to send waiver email:', await response.text())
+        }
+      } catch (emailError) {
+        console.warn('Error sending waiver email:', emailError)
+      }
+
       Alert.alert('Success', 'Waiver signed successfully!', [
         { text: 'OK', onPress: onSuccess }
       ])
@@ -103,8 +127,12 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   const loadWaiver = async () => {
     try {
       setLoadingWaiver(true)
-      const activeWaiver = await waiverApi.getActiveWaiver()
-      setWaiver(activeWaiver)
+      // Get the public URL for the waiver PDF
+      const { data } = supabase.storage
+        .from('waivers')
+        .getPublicUrl('hot_yoga_waiver_simple.pdf')
+      
+      setWaiverUrl(data.publicUrl)
     } catch (error) {
       console.error('Error loading waiver:', error)
       Alert.alert('Error', 'Failed to load waiver document')
@@ -113,31 +141,20 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
     }
   }
 
-  const getWaiverText = () => {
-    if (waiver?.content) {
-      // Replace placeholder with user's name
-      return waiver.content.replace(
-        /\[USER_NAME\]/g, 
-        userProfile.fullname || `${userProfile.first_name} ${userProfile.last_name}`
-      )
+  const openWaiverPDF = async () => {
+    if (waiverUrl) {
+      try {
+        const supported = await Linking.canOpenURL(waiverUrl)
+        if (supported) {
+          await Linking.openURL(waiverUrl)
+        } else {
+          Alert.alert('Error', 'Cannot open PDF viewer')
+        }
+      } catch (error) {
+        console.error('Error opening PDF:', error)
+        Alert.alert('Error', 'Failed to open waiver document')
+      }
     }
-    
-    // Fallback waiver text if no waiver is found
-    return `
-LIABILITY WAIVER AND RELEASE
-
-I, ${userProfile.fullname || `${userProfile.first_name} ${userProfile.last_name}`}, acknowledge that I am voluntarily participating in hot yoga classes and activities at The Hot Temple.
-
-I understand that yoga practice involves physical exertion and carries inherent risks of injury. I acknowledge that the heated environment may pose additional risks including but not limited to dehydration, overheating, and heat-related illness.
-
-I hereby release, waive, discharge, and covenant not to sue The Hot Temple, its owners, instructors, employees, and agents from any and all liability, claims, demands, actions, and causes of action whatsoever arising out of or related to any loss, damage, or injury that may be sustained by me while participating in such activities.
-
-I acknowledge that I am in good physical condition and have no medical conditions that would prevent my safe participation in yoga classes. I agree to inform instructors of any injuries or medical conditions before class.
-
-I understand that this waiver is binding and that I am giving up substantial rights by signing it.
-
-By signing below, I acknowledge that I have read and understand this waiver and agree to its terms.
-    `
   }
 
   if (loadingWaiver) {
@@ -152,12 +169,26 @@ By signing below, I acknowledge that I have read and understand this waiver and 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Card style={styles.card}>
-        <Text style={styles.title}>{waiver?.title || 'Liability Waiver'}</Text>
+        <Text style={styles.title}>Liability Waiver</Text>
         <Text style={styles.subtitle}>Please read and sign to continue</Text>
         
-        <ScrollView style={styles.waiverTextContainer} showsVerticalScrollIndicator={true}>
-          <Text style={styles.waiverText}>{getWaiverText()}</Text>
-        </ScrollView>
+        <View style={styles.waiverSection}>
+          <Text style={styles.waiverDescription}>
+            Please review the waiver document before signing. Tap the button below to open and read the full waiver.
+          </Text>
+          
+          <Button
+            title="📄 View Waiver Document"
+            onPress={openWaiverPDF}
+            variant="outline"
+            style={styles.viewWaiverButton}
+            disabled={!waiverUrl}
+          />
+          
+          <Text style={styles.agreementText}>
+            By signing below, I acknowledge that I have read and agree to the terms of the waiver document.
+          </Text>
+        </View>
 
         <View style={styles.signatureSection}>
           <Text style={styles.signatureLabel}>Your Signature:</Text>
@@ -232,19 +263,30 @@ const styles = StyleSheet.create({
     textAlign: 'center' as const,
     marginBottom: 24,
   },
-  waiverTextContainer: {
-    maxHeight: 300,
+  waiverSection: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    backgroundColor: Colors.white,
   },
-  waiverText: {
+  waiverDescription: {
     fontSize: 14,
     lineHeight: 20,
     color: Colors.text,
+    marginBottom: 16,
+    textAlign: 'center' as const,
+  },
+  viewWaiverButton: {
+    marginBottom: 16,
+  },
+  agreementText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    fontStyle: 'italic' as const,
   },
   signatureSection: {
     marginBottom: 24,
