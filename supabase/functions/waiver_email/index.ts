@@ -209,7 +209,7 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'formking11@gmail.com',
+        from: 'onboarding@resend.dev',
         to: ['christopherascott@hotmail.com'],
         subject: `New Waiver Signed - ${profile.fullname}`,
         html: `
