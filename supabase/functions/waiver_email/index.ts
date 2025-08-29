@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Hot Yoga Studio <noreply@yourdomain.com>', // You'll need to configure this
+        from: 'onboarding@resend.dev', // Using Resend's test domain - replace with your domain later
         to: ['christopherascott@hotmail.com'],
         subject: `New Waiver Signed - ${profile.fullname}`,
         html: `
