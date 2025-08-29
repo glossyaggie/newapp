@@ -11,6 +11,7 @@ export type Database = {
           phone: string | null
           role: 'user' | 'admin'
           waiver_signed_at: string | null
+          waiver_signature_data: string | null
           created_at: string
         }
         Insert: {
@@ -19,6 +20,7 @@ export type Database = {
           phone?: string | null
           role?: 'user' | 'admin'
           waiver_signed_at?: string | null
+          waiver_signature_data?: string | null
           created_at?: string
         }
         Update: {
@@ -27,6 +29,7 @@ export type Database = {
           phone?: string | null
           role?: 'user' | 'admin'
           waiver_signed_at?: string | null
+          waiver_signature_data?: string | null
           created_at?: string
         }
       }
@@ -214,7 +217,7 @@ export type Database = {
         }
       }
       get_active_pass: {
-        Args: {}
+        Args: Record<string, never>
         Returns: {
           remaining_credits: number
           valid_until: string
