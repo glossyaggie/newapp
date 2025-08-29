@@ -6,46 +6,46 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Price ID to pass type mapping
+// Price ID to pass type mapping - matches exact names from database
 const PRICE_MAPPINGS = {
   'price_1S0r9bARpqh0Ut1y4lHGGuAT': {
-    pass_type: 'single',
+    pass_type: 'Single Class',
     credits: 1,
     mode: 'payment'
   },
   'price_1S0vfBARpqh0Ut1ybKjeqehJ': {
-    pass_type: '5-class',
+    pass_type: '5-Class Pack',
     credits: 5,
     mode: 'payment'
   },
   'price_1S0rHLARpqh0Ut1ybWGa3ocf': {
-    pass_type: '10-class',
+    pass_type: '10-Class Pack',
     credits: 10,
     mode: 'payment'
   },
   'price_1S0rHqARpqh0Ut1ygGGaoqac': {
-    pass_type: '25-class',
+    pass_type: '25-Class Pack',
     credits: 25,
     mode: 'payment'
   },
   // subscriptions
   'price_1S0rIRARpqh0Ut1yQkmz18xc': {
-    pass_type: 'weekly-unlimited',
+    pass_type: 'Weekly Unlimited',
     durationDays: 7,
     mode: 'subscription'
   },
   'price_1S0rJlARpqh0Ut1yaeBEQVRf': {
-    pass_type: 'monthly-unlimited',
+    pass_type: 'Monthly Unlimited',
     durationDays: 30,
     mode: 'subscription'
   },
   'price_1S0rKbARpqh0Ut1ydYwnH2Zy': {
-    pass_type: 'vip-monthly',
+    pass_type: 'VIP Monthly',
     durationDays: 30,
     mode: 'subscription'
   },
   'price_1S0rLOARpqh0Ut1y2lbJ17g7': {
-    pass_type: 'vip-yearly',
+    pass_type: 'VIP Yearly',
     durationDays: 365,
     mode: 'subscription'
   },

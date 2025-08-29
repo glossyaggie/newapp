@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useEffect, useRef } from 'react'
@@ -16,11 +16,11 @@ type ActivePass = {
 export function usePasses() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const hasSyncedPrices = useRef(false)
+  const hasSyncedOnce = useRef(false)
 
   // Get active pass
   const activePassQuery = useQuery({
-    queryKey: ['active-pass', user?.id] as const,
+    queryKey: ['active-pass', user?.id],
     queryFn: async (): Promise<ActivePass> => {
       if (!user) return null
       
@@ -36,17 +36,7 @@ export function usePasses() {
     enabled: !!user,
   })
 
-  // Sync prices from Stripe
-  const syncPricesMutation = useMutation({
-    mutationFn: syncStripePrices,
-    onSuccess: () => {
-      console.log('✅ Prices synced, refreshing pass types...')
-      queryClient.invalidateQueries({ queryKey: ['pass-types'] })
-    },
-    onError: (error) => {
-      console.error('❌ Failed to sync prices:', error)
-    },
-  })
+
 
   // Get pass types for purchase
   const passTypesQuery = useQuery({
@@ -69,29 +59,24 @@ export function usePasses() {
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   })
 
-  // Auto-sync prices from Stripe once per session
+  // Auto-sync prices from Stripe once per app session
   useEffect(() => {
-    if (!hasSyncedPrices.current && passTypesQuery.data) {
-      // Check if any pass types have zero prices
-      const hasZeroPrices = passTypesQuery.data.some(passType => 
-        passType.price === null || passType.price === 0
-      )
+    if (!hasSyncedOnce.current && passTypesQuery.data) {
+      hasSyncedOnce.current = true
+      console.log('🔄 Auto-syncing prices from Stripe on app startup...')
       
-      if (hasZeroPrices) {
-        hasSyncedPrices.current = true
-        console.log('🔄 Auto-syncing prices from Stripe (found zero prices)...')
-        
-        syncStripePrices()
-          .then(() => {
-            console.log('✅ Auto-sync completed, refreshing pass types...')
-            queryClient.invalidateQueries({ queryKey: ['pass-types'] })
-          })
-          .catch((error) => {
-            console.warn('⚠️ Auto-sync failed, using cached prices:', error)
-          })
-      }
+      syncStripePrices()
+        .then(() => {
+          console.log('✅ Auto-sync completed, refreshing pass types...')
+          queryClient.invalidateQueries({ queryKey: ['pass-types'] })
+        })
+        .catch((error) => {
+          console.warn('⚠️ Auto-sync failed, using cached prices:', error)
+        })
     }
   }, [queryClient, passTypesQuery.data])
+
+
 
   // Subscribe to wallet updates via Realtime
   useEffect(() => {
@@ -121,7 +106,5 @@ export function usePasses() {
     isLoading,
     hasLowCredits,
     refetch: activePassQuery.refetch,
-    syncPrices: syncPricesMutation.mutate,
-    isSyncingPrices: syncPricesMutation.isPending,
   }
 }

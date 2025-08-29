@@ -10,54 +10,29 @@ import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
 import { createStripeCheckout } from '@/lib/api/passes'
-import { STRIPE_PRICES } from '@/constants/limits'
+
 import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
 
-// Get price directly from our constants
+// Get price from database (synced from Stripe)
 function getPassPrice(passType: PassType): string {
-  // Find matching price from our constants
-  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
-    return data.name === passType.name
-  })
-  
-  if (priceEntry) {
-    return `${priceEntry[1].price.toFixed(2)}`
-  }
-  
-  // Fallback to database price if available
   const price = passType.price || 0
   return `${price.toFixed(2)}`
 }
 
 function getPerClassPrice(passType: PassType): string {
-  // Find matching price from our constants
-  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
-    return data.name === passType.name
-  })
-  
-  if (priceEntry && 'credits' in priceEntry[1]) {
-    const perClass = priceEntry[1].price / priceEntry[1].credits
-    return `${perClass.toFixed(2)}`
-  }
-  
-  // Fallback
   const price = passType.price || 0
   if (passType.credits && passType.credits > 0) {
     const perClass = price / passType.credits
     return `${perClass.toFixed(2)}`
   }
-  return '$0.00'
+  return '0.00'
 }
 
 // Get Stripe price ID for a pass type
 function getStripePriceId(passType: PassType): string | null {
-  const priceEntry = Object.entries(STRIPE_PRICES).find(([priceId, data]) => {
-    return data.name === passType.name
-  })
-  
-  return priceEntry ? priceEntry[0] : passType.stripe_price_id
+  return passType.stripe_price_id
 }
 
 export default function WalletScreen() {
