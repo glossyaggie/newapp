@@ -68,7 +68,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
       }
     } catch (error: any) {
       console.error('Auth error:', error)
-      Alert.alert('Error', `database error saving new user\n\n${error.message}`)
+      Alert.alert('Error', `Database error saving new user: ${error.message}`)
     } finally {
       setLoading(false)
     }
