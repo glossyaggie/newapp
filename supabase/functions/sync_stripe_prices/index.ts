@@ -91,7 +91,7 @@ serve(async (req) => {
 
       const priceInDollars = price.unit_amount ? price.unit_amount / 100 : 0
       
-      console.log(`💰 Processing ${price.id}: $${priceInDollars} (${mapping.pass_type})`)
+      console.log(`💰 Processing ${price.id}: ${priceInDollars} (${mapping.pass_type})`)
 
       // Update pass type in database
       const { error } = await supabase
@@ -107,7 +107,7 @@ serve(async (req) => {
         console.error(`❌ Error updating ${mapping.pass_type}:`, error)
         updates.push({ pass_type: mapping.pass_type, status: 'error', error: error.message })
       } else {
-        console.log(`✅ Updated ${mapping.pass_type} to $${priceInDollars}`)
+        console.log(`✅ Updated ${mapping.pass_type} to ${priceInDollars}`)
         updates.push({ pass_type: mapping.pass_type, status: 'success', price: priceInDollars })
       }
     }

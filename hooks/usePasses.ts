@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { syncStripePrices } from '@/lib/api/passes'
 import type { Database } from '@/types/supabase'
 
@@ -16,6 +16,7 @@ type ActivePass = {
 export function usePasses() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const hasSyncedPrices = useRef(false)
 
   // Get active pass
   const activePassQuery = useQuery({
@@ -51,14 +52,6 @@ export function usePasses() {
   const passTypesQuery = useQuery({
     queryKey: ['pass-types'] as const,
     queryFn: async (): Promise<PassType[]> => {
-      // First sync prices from Stripe to ensure they're up to date
-      try {
-        await syncStripePrices()
-        console.log('✅ Prices synced before fetching pass types')
-      } catch (error) {
-        console.warn('⚠️ Failed to sync prices, using cached data:', error)
-      }
-      
       const { data, error } = await supabase
         .from('pass_types')
         .select('*')
@@ -75,6 +68,23 @@ export function usePasses() {
     staleTime: 5 * 60 * 1000, // Consider data stale after 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   })
+
+  // Auto-sync prices from Stripe once per session
+  useEffect(() => {
+    if (!hasSyncedPrices.current) {
+      hasSyncedPrices.current = true
+      console.log('🔄 Auto-syncing prices from Stripe...')
+      
+      syncStripePrices()
+        .then(() => {
+          console.log('✅ Auto-sync completed, refreshing pass types...')
+          queryClient.invalidateQueries({ queryKey: ['pass-types'] })
+        })
+        .catch((error) => {
+          console.warn('⚠️ Auto-sync failed, using cached prices:', error)
+        })
+    }
+  }, [queryClient])
 
   // Subscribe to wallet updates via Realtime
   useEffect(() => {

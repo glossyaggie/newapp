@@ -29,7 +29,7 @@ const STRIPE_PRICE_IDS: Record<string, string> = {
 function getPassPrice(passType: PassType): string {
   // Use the price from the database (synced from Stripe)
   const price = passType.price || 0
-  return `${price}`
+  return `${price.toFixed(2)}`
 }
 
 function getPerClassPrice(passType: PassType): string {
@@ -38,7 +38,7 @@ function getPerClassPrice(passType: PassType): string {
     const perClass = price / passType.credits
     return `${perClass.toFixed(2)}`
   }
-  return '$0'
+  return '$0.00'
 }
 
 export default function WalletScreen() {
@@ -113,20 +113,6 @@ export default function WalletScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Wallet</Text>
-          <TouchableOpacity 
-            style={styles.syncButton}
-            onPress={() => syncPrices()}
-            disabled={isSyncingPrices}
-          >
-            <RefreshCw 
-              size={20} 
-              color={isSyncingPrices ? Colors.textLight : Colors.primary}
-              style={isSyncingPrices ? styles.spinning : undefined}
-            />
-            <Text style={[styles.syncText, isSyncingPrices && styles.syncTextDisabled]}>
-              {isSyncingPrices ? 'Syncing...' : 'Sync Prices'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         <WalletCard
