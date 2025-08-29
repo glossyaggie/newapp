@@ -30,15 +30,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get user profile with waiver data
+    console.log('Fetching profile for userId:', userId)
     const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
 
+    console.log('Profile fetch result:', { profile, profileError })
+
     if (profileError || !profile) {
+      console.error('Profile not found:', profileError)
       return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
+        JSON.stringify({ error: 'Profile not found', details: profileError }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -185,6 +189,7 @@ Deno.serve(async (req: Request) => {
 
     // Send email using Resend (free tier: 3000 emails/month)
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
+    console.log('RESEND_API_KEY configured:', !!resendApiKey)
     
     if (!resendApiKey) {
       console.warn('RESEND_API_KEY not configured, skipping email')
@@ -225,12 +230,14 @@ Deno.serve(async (req: Request) => {
 
     if (!emailResponse.ok) {
       const errorText = await emailResponse.text()
-      console.error('Failed to send email:', errorText)
+      console.error('Failed to send email. Status:', emailResponse.status)
+      console.error('Error response:', errorText)
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'Waiver processed but email failed to send',
-          emailError: errorText
+          emailError: errorText,
+          emailStatus: emailResponse.status
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
