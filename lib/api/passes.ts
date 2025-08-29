@@ -21,59 +21,45 @@ export async function getActivePass(): Promise<ActivePass | null> {
   return data
 }
 
-export interface CatalogPrice {
+export interface PassType {
   id: string
   name: string
+  kind: string
+  credits: number | null
+  duration_days: number
   stripe_price_id: string
-  unit_amount: number
+  price_amount_cents: number
   currency: string
-  recurring: boolean
-  per_class?: number
-  classes_count?: number
-  validity_days: number
-  pass_type: string
+  is_subscription: boolean
+  interval: string | null
+  interval_count: number | null
+  sort_order: number
+  active: boolean
 }
 
-export async function getCatalogPrices(): Promise<CatalogPrice[]> {
-  console.log('🔄 Fetching catalog prices from Stripe...')
-  
-  const { data, error } = await supabase.functions.invoke('catalog_prices')
-  
-  if (error) {
-    console.error('❌ Error fetching catalog prices:', error)
-    throw new Error(`Failed to fetch catalog prices: ${error.message}`)
-  }
-  
-  if (!data?.prices) {
-    console.warn('⚠️ No prices returned from catalog_prices function')
-    return []
-  }
-  
-  console.log('✅ Catalog prices fetched:', data.prices.length, 'prices')
-  return data.prices
-}
-
-export async function getPassTypes() {
-  console.log('🔄 Fetching pass types...')
+export async function getPassTypes(): Promise<PassType[]> {
+  console.log('🔄 Fetching pass types from database...')
   
   const { data, error } = await supabase
     .from('pass_types')
-    .select('*')
+    .select('id,name,kind,credits,duration_days,stripe_price_id,price_amount_cents,currency,is_subscription,interval,interval_count,sort_order,active')
     .eq('active', true)
-    .order('sort_order')
+    .order('sort_order', { ascending: true })
   
   if (error) {
     console.error('❌ Error fetching pass types:', error)
-    throw error
+    throw new Error(`Failed to fetch pass types: ${error.message}`)
   }
   
   console.log('✅ Pass types fetched:', data?.length, 'types')
-  return data
+  return data || []
 }
 
 
 
-export async function createStripeCheckout(catalogPrice: CatalogPrice) {
+
+
+export async function createStripeCheckout(passType: PassType) {
   console.log('🔄 Creating Stripe checkout session...')
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -83,11 +69,11 @@ export async function createStripeCheckout(catalogPrice: CatalogPrice) {
 
   const { data, error } = await supabase.functions.invoke('create_checkout_session', {
     body: {
-      priceId: catalogPrice.stripe_price_id,
-      passTypeId: catalogPrice.id,
+      priceId: passType.stripe_price_id,
+      passTypeId: passType.id,
       userId: user.id,
       userEmail: user.email,
-      mode: catalogPrice.recurring ? 'subscription' : 'payment',
+      mode: passType.is_subscription ? 'subscription' : 'payment',
     },
   })
 

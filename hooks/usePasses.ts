@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
-import { useEffect, useRef } from 'react'
-import { syncStripePrices } from '@/lib/api/passes'
+import { useEffect } from 'react'
+
 import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
@@ -16,7 +16,7 @@ type ActivePass = {
 export function usePasses() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const hasSyncedOnce = useRef(false)
+
 
   // Get active pass
   const activePassQuery = useQuery({
@@ -59,22 +59,7 @@ export function usePasses() {
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   })
 
-  // Auto-sync prices from Stripe once per app session
-  useEffect(() => {
-    if (!hasSyncedOnce.current && passTypesQuery.data) {
-      hasSyncedOnce.current = true
-      console.log('🔄 Auto-syncing prices from Stripe on app startup...')
-      
-      syncStripePrices()
-        .then(() => {
-          console.log('✅ Auto-sync completed, refreshing pass types...')
-          queryClient.invalidateQueries({ queryKey: ['pass-types'] })
-        })
-        .catch((error) => {
-          console.warn('⚠️ Auto-sync failed, using cached prices:', error)
-        })
-    }
-  }, [queryClient, passTypesQuery.data])
+
 
 
 
