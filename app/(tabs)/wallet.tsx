@@ -16,9 +16,9 @@ type PassType = Database['public']['Tables']['pass_types']['Row']
 // Price mapping based on your Stripe products
 const PASS_PRICES: Record<string, number> = {
   'Single Class': 25,
-  '5 Class Pass': 100,
-  '10 Class Pass': 200,
-  '25 Class Pass': 400,
+  '5-Class Pack': 100,
+  '10-Class Pack': 200,
+  '25-Class Pack': 400,
   'Weekly Unlimited': 45,
   'Monthly Unlimited': 200,
   'VIP Monthly': 300,
