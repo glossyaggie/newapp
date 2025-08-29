@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Card } from '@/components/ui/Card'
 import { WalletCard } from '@/components/WalletCard'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { AuthForm } from '@/components/AuthForm'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
@@ -15,19 +16,27 @@ export default function HomeScreen() {
   const { user, profile, loading: authLoading } = useAuth()
   const { activePass, hasLowCredits, isLoading: passesLoading } = usePasses()
 
-  if (authLoading || passesLoading) {
+  if (authLoading || (user && passesLoading)) {
     return <LoadingSpinner />
   }
 
   if (!user) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.authContainer}>
-          <Text style={styles.welcomeTitle}>Welcome to The Hot Temple</Text>
-          <Text style={styles.welcomeText}>
-            Sign in to book classes and manage your passes
-          </Text>
-        </View>
+        <LinearGradient
+          colors={Colors.backgroundGradient}
+          style={styles.gradient}
+        >
+          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            <View style={styles.authHeader}>
+              <Text style={styles.welcomeTitle}>Welcome to The Hot Temple</Text>
+              <Text style={styles.welcomeText}>
+                Your journey to wellness starts here 🔥
+              </Text>
+            </View>
+            <AuthForm />
+          </ScrollView>
+        </LinearGradient>
       </SafeAreaView>
     )
   }
@@ -51,8 +60,8 @@ export default function HomeScreen() {
           </View>
 
           <WalletCard
-            activePass={activePass}
-            hasLowCredits={hasLowCredits}
+            activePass={activePass || null}
+            hasLowCredits={hasLowCredits || false}
             onTopUp={handleTopUp}
           />
 
@@ -196,11 +205,10 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     fontSize: 14,
   },
-  authContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  authHeader: {
     alignItems: 'center',
-    padding: 40,
+    marginBottom: 32,
+    marginTop: 40,
   },
   welcomeTitle: {
     fontSize: 24,
