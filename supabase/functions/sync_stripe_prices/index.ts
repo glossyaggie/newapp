@@ -1,5 +1,12 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+// Global declarations for Deno runtime
+declare const Deno: {
+  serve: (handler: (req: Request) => Promise<Response> | Response) => void;
+  env: {
+    get: (key: string) => string | undefined;
+  };
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,7 +58,7 @@ const PRICE_MAPPINGS = {
   },
 } as const
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -60,8 +67,8 @@ serve(async (req) => {
     console.log('🔄 Starting Stripe price sync...')
 
     // Initialize Stripe
-    const stripe = await import('https://esm.sh/stripe@14.21.0')
-    const stripeClient = new stripe.default(Deno.env.get('STRIPE_SECRET_KEY')!, {
+    const { default: Stripe } = await import('https://esm.sh/stripe@14.21.0')
+    const stripeClient = new (Stripe as any)(Deno.env.get('STRIPE_SECRET_KEY')!, {
       apiVersion: '2023-10-16',
     })
 
@@ -131,7 +138,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error instanceof Error ? error.message : 'Unknown error' 
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
