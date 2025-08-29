@@ -52,7 +52,12 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           throw error
         }
         console.log('Signup successful:', data)
-        Alert.alert('Success', 'Check your email for the confirmation link!')
+        if (data.user && !data.session) {
+          Alert.alert('Success', 'Check your email for the confirmation link!')
+        } else {
+          Alert.alert('Success', 'Account created successfully!')
+          onSuccess?.()
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,

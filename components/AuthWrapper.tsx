@@ -23,11 +23,11 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
 
   // Not authenticated - show auth form
   if (!user) {
-    return <AuthForm />
+    return <AuthForm onSuccess={refetchProfile} />
   }
 
   // Authenticated but no waiver signed - show waiver form
-  if (!hasSignedWaiver && profile) {
+  if (user && profile && !hasSignedWaiver) {
     return (
       <WaiverForm 
         userProfile={{
@@ -37,6 +37,15 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
         }}
         onSuccess={refetchProfile}
       />
+    )
+  }
+
+  // Authenticated but profile still loading - show loading
+  if (user && !profile) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LoadingSpinner size="large" />
+      </View>
     )
   }
 
