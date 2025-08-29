@@ -22,6 +22,10 @@ CREATE POLICY "Users can update own profile" ON profiles
 CREATE POLICY "Users can insert own profile" ON profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
+-- Allow the trigger function to insert profiles
+CREATE POLICY "System can insert profiles" ON profiles
+  FOR INSERT WITH CHECK (true);
+
 -- Pass types: everyone can read active ones
 CREATE POLICY "Anyone can view active pass types" ON pass_types
   FOR SELECT USING (active = true);

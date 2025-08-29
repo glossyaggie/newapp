@@ -141,10 +141,10 @@ BEGIN
   INSERT INTO public.profiles (id, first_name, last_name, fullname, phone)
   VALUES (
     NEW.id, 
-    NEW.raw_user_meta_data->>'first_name',
-    NEW.raw_user_meta_data->>'last_name',
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'phone'
+    COALESCE(NEW.raw_user_meta_data->>'first_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'phone', '')
   );
   RETURN NEW;
 EXCEPTION
