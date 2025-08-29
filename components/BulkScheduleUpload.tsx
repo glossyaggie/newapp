@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native'
-import { X } from 'lucide-react-native'
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native'
+import { X, Upload, FileText } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Colors } from '@/constants/colors'
@@ -34,6 +34,7 @@ export function BulkScheduleUpload({ onSuccess, onCancel }: BulkScheduleUploadPr
   const [isUploading, setIsUploading] = useState(false)
   const [previewData, setPreviewData] = useState<ClassData[]>([])
   const [showPreview, setShowPreview] = useState(false)
+  const [uploadMethod, setUploadMethod] = useState<'paste' | 'file'>('paste')
 
   const parseCSV = (csvText: string): ClassData[] => {
     const lines = csvText.trim().split('\n')
@@ -167,10 +168,35 @@ export function BulkScheduleUpload({ onSuccess, onCancel }: BulkScheduleUploadPr
     }
   }
 
+  const handleFileUpload = () => {
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.csv'
+      input.onchange = (e: any) => {
+        const file = e.target.files[0]
+        if (file) {
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            const csvText = event.target?.result as string
+            setCsvData(csvText)
+            setUploadMethod('file')
+          }
+          reader.readAsText(file)
+        }
+      }
+      input.click()
+    } else {
+      Alert.alert('File Upload', 'File upload is only available on web. Please use copy/paste method on mobile.')
+    }
+  }
+
   const sampleCSV = `title,instructor,date,start_time,end_time,capacity,level
 Hot Vinyasa Flow,Sarah Johnson,2025-08-30,06:00,07:00,20,All Levels
 Yin Yoga,Mike Chen,2025-08-30,19:30,20:30,15,Beginner
-Power Yoga,Emma Davis,2025-08-31,09:00,10:00,25,Intermediate`
+Power Yoga,Emma Davis,2025-08-31,09:00,10:00,25,Intermediate
+Morning Flow,Lisa Park,2025-09-01,07:00,08:00,18,Beginner
+Hot 26,David Kim,2025-09-01,18:00,19:30,22,All Levels`
 
   if (showPreview) {
     return (
@@ -229,8 +255,45 @@ Power Yoga,Emma Davis,2025-08-31,09:00,10:00,25,Intermediate`
       </View>
 
       <Text style={styles.description}>
-        Upload multiple classes at once using CSV format. You can copy and paste from Excel or Google Sheets.
+        Upload multiple classes at once using CSV format. You can copy and paste from Excel/Google Sheets or upload a CSV file.
       </Text>
+
+      {/* Upload Method Selector */}
+      <View style={styles.methodSelector}>
+        <TouchableOpacity
+          style={[
+            styles.methodButton,
+            uploadMethod === 'paste' && styles.methodButtonActive,
+          ]}
+          onPress={() => setUploadMethod('paste')}
+        >
+          <FileText size={20} color={uploadMethod === 'paste' ? Colors.white : Colors.primary} />
+          <Text style={[
+            styles.methodButtonText,
+            uploadMethod === 'paste' && styles.methodButtonTextActive,
+          ]}>
+            Copy & Paste
+          </Text>
+        </TouchableOpacity>
+
+        {Platform.OS === 'web' && (
+          <TouchableOpacity
+            style={[
+              styles.methodButton,
+              uploadMethod === 'file' && styles.methodButtonActive,
+            ]}
+            onPress={handleFileUpload}
+          >
+            <Upload size={20} color={uploadMethod === 'file' ? Colors.white : Colors.primary} />
+            <Text style={[
+              styles.methodButtonText,
+              uploadMethod === 'file' && styles.methodButtonTextActive,
+            ]}>
+              Upload File
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={styles.sampleSection}>
         <Text style={styles.sampleTitle}>Sample CSV Format:</Text>
@@ -238,20 +301,45 @@ Power Yoga,Emma Davis,2025-08-31,09:00,10:00,25,Intermediate`
           <Text style={styles.sampleText}>{sampleCSV}</Text>
         </View>
         <Text style={styles.sampleNote}>
-          Required fields: title, instructor, date (YYYY-MM-DD), start_time (HH:MM)
+          Required fields: title, instructor, date (YYYY-MM-DD), start_time (HH:MM){"\n"}
+          Optional: end_time, capacity (default: 20), level, notes, heat_c, duration_min (default: 60)
         </Text>
+        
+        <TouchableOpacity 
+          style={styles.copySampleButton}
+          onPress={() => {
+            setCsvData(sampleCSV)
+            setUploadMethod('paste')
+            Alert.alert('Sample Data Copied', 'Sample CSV data has been loaded. You can now preview and upload these classes.')
+          }}
+        >
+          <Text style={styles.copySampleButtonText}>Use Sample Data</Text>
+        </TouchableOpacity>
       </View>
 
-      <Text style={styles.inputLabel}>Paste your CSV data:</Text>
-      <TextInput
-        style={styles.textInput}
-        value={csvData}
-        onChangeText={setCsvData}
-        placeholder="Paste CSV data here..."
-        multiline
-        numberOfLines={8}
-        textAlignVertical="top"
-      />
+      {uploadMethod === 'paste' && (
+        <>
+          <Text style={styles.inputLabel}>Paste your CSV data:</Text>
+          <TextInput
+            style={styles.textInput}
+            value={csvData}
+            onChangeText={setCsvData}
+            placeholder="Paste CSV data here..."
+            multiline
+            numberOfLines={8}
+            textAlignVertical="top"
+          />
+        </>
+      )}
+
+      {uploadMethod === 'file' && csvData && (
+        <View style={styles.filePreview}>
+          <Text style={styles.filePreviewTitle}>File uploaded successfully!</Text>
+          <Text style={styles.filePreviewText}>
+            {csvData.split('\n').length - 1} rows detected
+          </Text>
+        </View>
+      )}
 
       <View style={styles.buttonRow}>
         <Button
@@ -362,5 +450,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 2,
+  },
+  methodSelector: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  methodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  methodButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  methodButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  methodButtonTextActive: {
+    color: Colors.white,
+  },
+  filePreview: {
+    backgroundColor: Colors.success + '20',
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.success,
+    marginBottom: 20,
+  },
+  filePreviewTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.success,
+    marginBottom: 4,
+  },
+  filePreviewText: {
+    fontSize: 14,
+    color: Colors.success,
+  },
+  copySampleButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignSelf: 'flex-start' as const,
+    marginTop: 8,
+  },
+  copySampleButtonText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
 })
