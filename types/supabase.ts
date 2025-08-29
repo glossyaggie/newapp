@@ -210,6 +210,69 @@ export type Database = {
           created_at?: string
         }
       }
+      pass_purchases: {
+        Row: {
+          id: string
+          user_id: string
+          pass_type_id: string
+          stripe_session_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          pass_type_id: string
+          stripe_session_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          pass_type_id?: string
+          stripe_session_id?: string
+          created_at?: string
+        }
+      }
+      stripe_webhooks: {
+        Row: {
+          id: string
+          type: string
+          payload: Json
+          received_at: string
+        }
+        Insert: {
+          id?: string
+          type: string
+          payload: Json
+          received_at?: string
+        }
+        Update: {
+          id?: string
+          type?: string
+          payload?: Json
+          received_at?: string
+        }
+      }
+      device_tokens: {
+        Row: {
+          user_id: string
+          token: string
+          platform: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          token: string
+          platform: string
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          token?: string
+          platform?: string
+          created_at?: string
+        }
+      }
       waiver_documents: {
         Row: {
           id: string

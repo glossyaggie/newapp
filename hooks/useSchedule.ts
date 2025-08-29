@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
-import { format, startOfDay, endOfDay } from 'date-fns'
+import { format } from 'date-fns'
 
 export interface ClassWithBooking {
   id: string
@@ -36,9 +36,8 @@ export function useSchedule(selectedDate: Date) {
         .from('class_schedule')
         .select(`
           *,
-          class_bookings!inner(count),
-          class_bookings!left(id, status, user_id),
-          favorites!left(id, user_id)
+          class_bookings(id, status, user_id),
+          favorites(id, user_id)
         `)
         .eq('date', dateStr)
         .order('start_time')
@@ -74,7 +73,7 @@ export function useSchedule(selectedDate: Date) {
     mutationFn: async (classId: string) => {
       const { data, error } = await supabase.rpc('book_class', {
         p_class_id: classId
-      })
+      } as any)
 
       if (error) {
         console.error('Error booking class:', error)
@@ -97,7 +96,7 @@ export function useSchedule(selectedDate: Date) {
     mutationFn: async (bookingId: string) => {
       const { data, error } = await supabase.rpc('cancel_booking', {
         p_booking_id: bookingId
-      })
+      } as any)
 
       if (error) {
         console.error('Error cancelling booking:', error)
@@ -136,7 +135,7 @@ export function useSchedule(selectedDate: Date) {
           .insert({
             user_id: user.id,
             class_id: classId,
-          })
+          } as any)
 
         if (error) throw error
       }
