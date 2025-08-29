@@ -1,4 +1,6 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+// @ts-nocheck
+// This is a Supabase Edge Function that runs in Deno, not Node.js
+import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -6,7 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -21,8 +23,8 @@ serve(async (req) => {
 
     // Verify webhook signature
     const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')!
-    const stripe = await import('https://esm.sh/stripe@14.21.0')
-    const stripeClient = new stripe.default(Deno.env.get('STRIPE_SECRET_KEY')!, {
+    const { default: Stripe } = await import('https://esm.sh/stripe@14.21.0')
+    const stripeClient = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
       apiVersion: '2023-10-16',
     })
 
@@ -30,8 +32,9 @@ serve(async (req) => {
     try {
       event = stripeClient.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err) {
-      console.error('Webhook signature verification failed:', err.message)
-      return new Response(`Webhook Error: ${err.message}`, { status: 400 })
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      console.error('Webhook signature verification failed:', errorMessage)
+      return new Response(`Webhook Error: ${errorMessage}`, { status: 400 })
     }
 
     // Initialize Supabase client with service role
@@ -194,8 +197,9 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Webhook error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
