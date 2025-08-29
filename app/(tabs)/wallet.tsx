@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
@@ -10,6 +10,7 @@ import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
 import { createStripeCheckout, getPassTypes, type PassType } from '@/lib/api/passes'
+import { useLocalSearchParams } from 'expo-router'
 
 // Format price using Intl.NumberFormat
 function formatPrice(cents: number, currency: string): string {
@@ -21,10 +22,24 @@ function formatPrice(cents: number, currency: string): string {
 
 export default function WalletScreen() {
   const { user } = useAuth()
-  const { activePass, hasLowCredits, isLoading: passesLoading } = usePasses()
+  const { activePass, hasLowCredits, isLoading: passesLoading, refetch } = usePasses()
   const [passTypes, setPassTypes] = useState<PassType[]>([])
   const [passTypesLoading, setPassTypesLoading] = useState(true)
   const [purchasingPassId, setPurchasingPassId] = useState<string | null>(null)
+  const { success, canceled } = useLocalSearchParams<{ success?: string; canceled?: string }>()
+
+  // Handle success/cancel from Stripe checkout
+  useEffect(() => {
+    if (success === 'true') {
+      console.log('✅ Payment successful, refreshing wallet data')
+      Alert.alert('Payment Successful!', 'Your pass has been added to your wallet.', [
+        { text: 'OK', onPress: () => refetch() }
+      ])
+    } else if (canceled === 'true') {
+      console.log('❌ Payment canceled')
+      Alert.alert('Payment Canceled', 'Your payment was canceled. You can try again anytime.')
+    }
+  }, [success, canceled, refetch])
 
   // Fetch pass types on component mount
   React.useEffect(() => {

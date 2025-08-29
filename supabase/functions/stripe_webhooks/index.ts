@@ -58,9 +58,19 @@ serve(async (req) => {
         const session = event.data.object
         console.log('Processing checkout session:', session.id)
 
-        // Get price ID mapping
-        const priceIds = JSON.parse(Deno.env.get('STRIPE_PRICE_IDS') || '{}')
-        const priceId = session.line_items?.data[0]?.price?.id || session.metadata?.price_id
+        // Get price ID from session metadata first, then try to expand line items if needed
+        let priceId = session.metadata?.price_id
+        
+        if (!priceId) {
+          // If no price ID in metadata, expand the session to get line items
+          const expandedSession = await stripeClient.checkout.sessions.retrieve(session.id, {
+            expand: ['line_items']
+          })
+          priceId = expandedSession.line_items?.data?.[0]?.price?.id
+        }
+        
+        console.log('Session metadata:', session.metadata)
+        console.log('Price ID found:', priceId)
 
         if (!priceId) {
           throw new Error('No price ID found in session')

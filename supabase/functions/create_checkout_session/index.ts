@@ -40,8 +40,8 @@ serve(async (req) => {
         },
       ],
       mode: mode || 'payment',
-      success_url: `${req.headers.get('origin') || 'http://localhost:8081'}/wallet?success=true`,
-      cancel_url: `${req.headers.get('origin') || 'http://localhost:8081'}/wallet?canceled=true`,
+      success_url: `${req.headers.get('origin') || 'http://localhost:8081'}/(tabs)/wallet?success=true`,
+      cancel_url: `${req.headers.get('origin') || 'http://localhost:8081'}/(tabs)/wallet?canceled=true`,
       client_reference_id: userId,
       customer_email: userEmail,
       metadata: {
