@@ -1,8 +1,17 @@
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
-
+// @ts-ignore
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+// @ts-ignore
 import { PDFDocument, rgb, StandardFonts } from 'https://esm.sh/pdf-lib@1.17.1'
+// @ts-ignore
 import { encode as b64encode, decode as b64decode } from "https://deno.land/std@0.224.0/encoding/base64.ts"
+
+// @ts-ignore
+declare const Deno: {
+  serve: (handler: (req: Request) => Promise<Response> | Response) => void;
+  env: {
+    get: (key: string) => string | undefined;
+  };
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,7 +30,7 @@ Deno.serve(async (req: Request) => {
     )
 
     const requestBody = await req.json()
-    const { userId, userProfile, signatureData } = requestBody
+    const { userId, signatureData } = requestBody
 
     if (!userId || !signatureData) {
       return new Response(
@@ -54,7 +63,7 @@ Deno.serve(async (req: Request) => {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     
-    const { width, height } = page.getSize()
+    const { height } = page.getSize()
     const margin = 50
     let yPosition = height - margin
 
