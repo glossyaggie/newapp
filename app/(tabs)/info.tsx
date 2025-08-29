@@ -1,20 +1,28 @@
 import React from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { MapPin, Phone, Mail, Clock, ExternalLink, LogOut, User } from 'lucide-react-native'
+import { MapPin, Phone, Mail, Clock, ExternalLink, LogOut, User, RefreshCw } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function InfoScreen() {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, forceRefresh } = useAuth()
 
   const handleSignOut = async () => {
     try {
       await signOut()
     } catch (error) {
       console.error('Error signing out:', error)
+    }
+  }
+
+  const handleForceRefresh = async () => {
+    try {
+      await forceRefresh()
+    } catch (error) {
+      console.error('Error refreshing auth:', error)
     }
   }
 
@@ -177,12 +185,20 @@ export default function InfoScreen() {
               </Text>
             </View>
 
-            <Button
-              title="Sign Out"
-              onPress={handleSignOut}
-              variant="outline"
-              style={styles.signOutButton}
-            />
+            <View style={styles.buttonContainer}>
+              <Button
+                title="Force Refresh"
+                onPress={handleForceRefresh}
+                variant="outline"
+                style={styles.refreshButton}
+              />
+              <Button
+                title="Sign Out"
+                onPress={handleSignOut}
+                variant="outline"
+                style={styles.signOutButton}
+              />
+            </View>
           </Card>
         )}
 
@@ -338,8 +354,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text,
   },
-  signOutButton: {
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 8,
+  },
+  refreshButton: {
+    flex: 1,
+  },
+  signOutButton: {
+    flex: 1,
   },
   authPromptCard: {
     marginBottom: 40,

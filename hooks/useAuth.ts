@@ -127,10 +127,52 @@ export function useAuth() {
   }
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('Error signing out:', error)
+    try {
+      // Clear local state first
+      setUser(null)
+      setProfile(null)
+      setSession(null)
+      setLoading(false)
+      
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Error signing out:', error)
+        throw error
+      }
+      
+      console.log('Successfully signed out')
+    } catch (error) {
+      console.error('Error in signOut:', error)
       throw error
+    }
+  }
+
+  const forceRefresh = async () => {
+    setLoading(true)
+    try {
+      // Clear current state
+      setUser(null)
+      setProfile(null)
+      setSession(null)
+      
+      // Get fresh session
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error('Error getting session:', error)
+        return
+      }
+      
+      setSession(session)
+      setUser(session?.user ?? null)
+      
+      if (session?.user) {
+        await fetchProfile(session.user.id)
+      }
+    } catch (error) {
+      console.error('Error in forceRefresh:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -143,6 +185,7 @@ export function useAuth() {
     session,
     loading,
     signOut,
+    forceRefresh,
     isAdmin,
     hasSignedWaiver,
     refetchProfile: () => user && fetchProfile(user.id),
