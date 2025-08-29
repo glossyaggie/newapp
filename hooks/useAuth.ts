@@ -44,7 +44,7 @@ export function useAuth() {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -55,24 +55,25 @@ export function useAuth() {
         const { data: userData } = await supabase.auth.getUser()
         const userMetadata = userData.user?.user_metadata || {}
         
-        const profileData: Database['public']['Tables']['profiles']['Insert'] = {
+        const profileData = {
           id: userId,
           first_name: userMetadata.first_name || null,
           last_name: userMetadata.last_name || null,
           fullname: userMetadata.full_name || null,
           phone: userMetadata.phone || null,
-          role: 'user',
+          role: 'user' as const,
         }
         
         console.log('Creating profile with data:', profileData)
-        const { data: newProfile, error: createError } = await supabase
+        const { data: newProfile, error: createError } = await (supabase as any)
           .from('profiles')
-          .insert(profileData as any)
+          .insert(profileData)
           .select()
           .single()
 
         if (createError) {
           console.error('Error creating profile:', createError)
+          throw new Error(`Failed to create profile: ${createError.message}`)
         } else {
           setProfile(newProfile)
         }
