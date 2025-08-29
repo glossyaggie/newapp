@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, Alert, Platform } from 'react-native'
+import { View, Text, StyleSheet, Alert, Platform, TextInput } from 'react-native'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { Upload, CheckCircle, AlertCircle } from 'lucide-react-native'
+import { Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react-native'
 
 interface UploadResult {
   success: boolean
@@ -163,8 +163,34 @@ export function ScheduleUpload() {
       <View style={styles.formatExample}>
         <Text style={styles.exampleTitle}>Expected CSV Format:</Text>
         <Text style={styles.exampleText}>
-          title,instructor,date,day,start_time,end_time,capacity{"\n"}HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 AM,24
+          title,instructor,date,day,start_time,end_time,capacity{"\n"}HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 AM,24{"\n"}YOGA FLOW,Sarah Johnson,2025/08/25,Monday,7:30 AM,8:30 AM,20
         </Text>
+      </View>
+
+      <View style={styles.sampleContainer}>
+        <View style={styles.sampleHeader}>
+          <FileText size={16} color="#007AFF" />
+          <Text style={styles.sampleTitle}>Sample CSV Data</Text>
+          <Button
+            title="Copy Sample"
+            onPress={() => {
+              const sampleData = `title,instructor,date,day,start_time,end_time,capacity
+HOT HIIT PILATES,Mel Lawson,2025/08/29,Thursday,6:00 AM,7:00 AM,24
+YOGA FLOW,Sarah Johnson,2025/08/29,Thursday,7:30 AM,8:30 AM,20
+STRENGTH TRAINING,Mike Davis,2025/08/29,Thursday,6:00 PM,7:00 PM,16
+PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
+              if (Platform.OS === 'web') {
+                navigator.clipboard.writeText(sampleData)
+                Alert.alert('Copied!', 'Sample CSV data copied to clipboard')
+              } else {
+                setCsvContent(sampleData)
+                Alert.alert('Sample Loaded', 'Sample CSV data loaded into the text area')
+              }
+            }}
+            variant="outline"
+            style={styles.copyButton}
+          />
+        </View>
       </View>
 
       <Button
@@ -178,27 +204,40 @@ export function ScheduleUpload() {
           {Platform.OS === 'web' ? 'Or paste your CSV content here:' : 'Paste your CSV content here:'}
         </Text>
         <View style={styles.textAreaWrapper}>
-          <Text 
-            style={styles.textArea}
-            onPress={() => {
-              // For mobile, we'll show an alert to paste content
-              Alert.prompt(
-                'Paste CSV Content',
-                'Paste your CSV data here:',
-                (text) => {
-                  if (text) {
-                    setCsvContent(text)
-                    setUploadResult(null)
-                  }
-                },
-                'plain-text',
-                csvContent,
-                'default'
-              )
-            }}
-          >
-            {csvContent || 'Tap to paste CSV content...'}
-          </Text>
+          {Platform.OS === 'web' ? (
+            <TextInput
+              style={styles.textAreaInput}
+              value={csvContent}
+              onChangeText={(text) => {
+                setCsvContent(text)
+                setUploadResult(null)
+              }}
+              placeholder="Paste your CSV content here..."
+              multiline
+              textAlignVertical="top"
+            />
+          ) : (
+            <Text 
+              style={styles.textArea}
+              onPress={() => {
+                Alert.prompt(
+                  'Paste CSV Content',
+                  'Paste your CSV data here:',
+                  (text) => {
+                    if (text) {
+                      setCsvContent(text)
+                      setUploadResult(null)
+                    }
+                  },
+                  'plain-text',
+                  csvContent,
+                  'default'
+                )
+              }}
+            >
+              {csvContent || 'Tap to paste CSV content...'}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -410,5 +449,39 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  textAreaInput: {
+    padding: 12,
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#4B5563',
+    minHeight: 100,
+    textAlignVertical: 'top',
+    borderWidth: 0,
+    outline: 'none',
+  },
+  sampleContainer: {
+    backgroundColor: '#EBF8FF',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#007AFF',
+  },
+  sampleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sampleTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+    flex: 1,
+    marginLeft: 8,
+  },
+  copyButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
 })
