@@ -1,14 +1,14 @@
 import React from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { MapPin, Phone, Mail, Clock, ExternalLink, LogOut, User, RefreshCw } from 'lucide-react-native'
+import { MapPin, Phone, Mail, Clock, ExternalLink, LogOut, User } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function InfoScreen() {
-  const { user, profile, signOut, forceRefresh } = useAuth()
+  const { user, profile, signOut } = useAuth()
 
   const handleSignOut = async () => {
     try {
@@ -18,13 +18,7 @@ export default function InfoScreen() {
     }
   }
 
-  const handleForceRefresh = async () => {
-    try {
-      await forceRefresh()
-    } catch (error) {
-      console.error('Error refreshing auth:', error)
-    }
-  }
+
 
   const handleOpenMaps = () => {
     const address = '123 Yoga Street, Wellness City, WC 12345'
@@ -186,12 +180,6 @@ export default function InfoScreen() {
             </View>
 
             <View style={styles.buttonContainer}>
-              <Button
-                title="Force Refresh"
-                onPress={handleForceRefresh}
-                variant="outline"
-                style={styles.refreshButton}
-              />
               <Button
                 title="Sign Out"
                 onPress={handleSignOut}
@@ -358,9 +346,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
-  },
-  refreshButton: {
-    flex: 1,
   },
   signOutButton: {
     flex: 1,
