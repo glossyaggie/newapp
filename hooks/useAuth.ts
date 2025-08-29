@@ -69,7 +69,7 @@ export function useAuth() {
         // Try to insert the profile
         let { data: newProfile, error: createError } = await (supabase as any)
           .from('profiles')
-          .insert(profileData)
+          .insert([profileData])
           .select()
           .single()
 
