@@ -29,7 +29,7 @@ const STRIPE_PRICE_IDS: Record<string, string> = {
 // Display prices (these should match your Stripe product prices)
 const PASS_PRICES: Record<string, number> = {
   'Single Class': 25,
-  '5-Class Pack': 100, // Updated to match your actual Stripe price
+  '5-Class Pack': 0.50, // Updated to match your actual Stripe price
   '10-Class Pack': 200,
   '25-Class Pack': 400,
   'Weekly Unlimited': 45,
