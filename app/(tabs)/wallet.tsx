@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
@@ -9,14 +9,27 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
+import { createStripeCheckout } from '@/lib/api/passes'
 import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
 
-// Price mapping based on your Stripe products (in AUD)
+// Price mapping to your actual Stripe price IDs
+const STRIPE_PRICE_IDS: Record<string, string> = {
+  'Single Class': 'price_1S0r9bARpqh0Ut1y4lHGGuAT',
+  '5-Class Pack': 'price_1S0vfBARpqh0Ut1ybKjeqehJ',
+  '10-Class Pack': 'price_1S0rHLARpqh0Ut1ybWGa3ocf',
+  '25-Class Pack': 'price_1S0rHqARpqh0Ut1ygGGaoqac',
+  'Weekly Unlimited': 'price_1S0rIRARpqh0Ut1yQkmz18xc',
+  'Monthly Unlimited': 'price_1S0rJlARpqh0Ut1yaeBEQVRf',
+  'VIP Monthly': 'price_1S0rKbARpqh0Ut1ydYwnH2Zy',
+  'VIP Yearly': 'price_1S0rLOARpqh0Ut1y2lbJ17g7',
+}
+
+// Display prices (these should match your Stripe product prices)
 const PASS_PRICES: Record<string, number> = {
   'Single Class': 25,
-  '5-Class Pack': 0.50, // A$0.50 as shown in Stripe
+  '5-Class Pack': 100, // Updated to match your actual Stripe price
   '10-Class Pack': 200,
   '25-Class Pack': 400,
   'Weekly Unlimited': 45,
@@ -42,6 +55,7 @@ function getPerClassPrice(passType: PassType): string {
 export default function WalletScreen() {
   const { user } = useAuth()
   const { activePass, passTypes, hasLowCredits, isLoading } = usePasses()
+  const [purchasingPassId, setPurchasingPassId] = useState<string | null>(null)
 
   const handlePurchasePass = async (passType: PassType) => {
     if (!user) {
@@ -49,9 +63,20 @@ export default function WalletScreen() {
       return
     }
 
+    const priceId = STRIPE_PRICE_IDS[passType.name]
+    if (!priceId) {
+      Alert.alert('Error', 'Price ID not found for this pass type')
+      return
+    }
+
+    setPurchasingPassId(passType.id)
+
     try {
-      // Create Stripe checkout URL
-      const checkoutUrl = `https://buy.stripe.com/test_${passType.stripe_price_id}?client_reference_id=${user.id}&prefilled_email=${user.email}`
+      console.log('🔄 Creating checkout session for:', passType.name, 'with price ID:', priceId)
+      
+      const checkoutUrl = await createStripeCheckout(priceId, passType.id)
+      
+      console.log('✅ Checkout URL created:', checkoutUrl)
       
       if (Platform.OS === 'web') {
         window.open(checkoutUrl, '_blank')
@@ -64,8 +89,11 @@ export default function WalletScreen() {
         }
       }
     } catch (error) {
-      console.error('Error opening checkout:', error)
-      Alert.alert('Error', 'Failed to open checkout page')
+      console.error('❌ Error creating checkout session:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      Alert.alert('Error', `Failed to create checkout session: ${errorMessage}`)
+    } finally {
+      setPurchasingPassId(null)
     }
   }
 
@@ -153,9 +181,10 @@ export default function WalletScreen() {
               </View>
 
               <Button
-                title="Purchase"
+                title={purchasingPassId === item.id ? "Creating checkout..." : "Purchase"}
                 onPress={() => handlePurchasePass(item)}
                 style={styles.purchaseButton}
+                disabled={purchasingPassId === item.id}
               />
 
               {item.kind === 'unlimited' && (
