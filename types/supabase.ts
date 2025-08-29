@@ -334,6 +334,16 @@ export type Database = {
           pass_name: string
         } | null
       }
+      create_profile_manual: {
+        Args: {
+          user_id: string
+          first_name_param?: string | null
+          last_name_param?: string | null
+          fullname_param?: string | null
+          phone_param?: string | null
+        }
+        Returns: boolean
+      }
     }
   }
 }

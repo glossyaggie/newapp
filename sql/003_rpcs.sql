@@ -425,7 +425,7 @@ CREATE OR REPLACE FUNCTION admin_mark_attendance(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
   v_user_id UUID := auth.uid();
 BEGIN

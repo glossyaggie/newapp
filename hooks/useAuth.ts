@@ -44,7 +44,7 @@ export function useAuth() {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -65,13 +65,49 @@ export function useAuth() {
         }
         
         console.log('Creating profile with data:', profileData)
-        const { data: newProfile, error: createError } = await (supabase as any)
+        
+        // Try to insert the profile
+        let { data: newProfile, error: createError } = await (supabase as any)
           .from('profiles')
           .insert(profileData)
           .select()
           .single()
 
-        if (createError) {
+        // If insert fails due to schema cache issues, try using RPC
+        if (createError && createError.code === 'PGRST204') {
+          console.log('Schema cache issue detected, trying RPC approach...')
+          const { error: rpcError } = await (supabase as any).rpc('create_profile_manual', {
+            user_id: userId,
+            first_name_param: userMetadata.first_name || null,
+            last_name_param: userMetadata.last_name || null,
+            fullname_param: userMetadata.full_name || null,
+            phone_param: userMetadata.phone || null
+          })
+          
+          if (rpcError) {
+            console.error('RPC profile creation failed:', rpcError)
+            // As a last resort, just set a minimal profile
+            setProfile({
+              id: userId,
+              first_name: userMetadata.first_name || null,
+              last_name: userMetadata.last_name || null,
+              fullname: userMetadata.full_name || null,
+              phone: userMetadata.phone || null,
+              role: 'user',
+              waiver_signed_at: null,
+              waiver_signature_data: null,
+              created_at: new Date().toISOString()
+            } as Profile)
+          } else {
+            // Fetch the created profile
+            const { data: fetchedProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .single()
+            setProfile(fetchedProfile)
+          }
+        } else if (createError) {
           console.error('Error creating profile:', createError)
           throw new Error(`Failed to create profile: ${createError.message}`)
         } else {
@@ -79,6 +115,7 @@ export function useAuth() {
         }
       } else if (error) {
         console.error('Error fetching profile:', error)
+        throw new Error(`Failed to fetch profile: ${error.message}`)
       } else {
         setProfile(data)
       }
