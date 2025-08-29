@@ -71,20 +71,27 @@ export function usePasses() {
 
   // Auto-sync prices from Stripe once per session
   useEffect(() => {
-    if (!hasSyncedPrices.current) {
-      hasSyncedPrices.current = true
-      console.log('🔄 Auto-syncing prices from Stripe...')
+    if (!hasSyncedPrices.current && passTypesQuery.data) {
+      // Check if any pass types have zero prices
+      const hasZeroPrices = passTypesQuery.data.some(passType => 
+        passType.price === null || passType.price === 0
+      )
       
-      syncStripePrices()
-        .then(() => {
-          console.log('✅ Auto-sync completed, refreshing pass types...')
-          queryClient.invalidateQueries({ queryKey: ['pass-types'] })
-        })
-        .catch((error) => {
-          console.warn('⚠️ Auto-sync failed, using cached prices:', error)
-        })
+      if (hasZeroPrices) {
+        hasSyncedPrices.current = true
+        console.log('🔄 Auto-syncing prices from Stripe (found zero prices)...')
+        
+        syncStripePrices()
+          .then(() => {
+            console.log('✅ Auto-sync completed, refreshing pass types...')
+            queryClient.invalidateQueries({ queryKey: ['pass-types'] })
+          })
+          .catch((error) => {
+            console.warn('⚠️ Auto-sync failed, using cached prices:', error)
+          })
+      }
     }
-  }, [queryClient])
+  }, [queryClient, passTypesQuery.data])
 
   // Subscribe to wallet updates via Realtime
   useEffect(() => {

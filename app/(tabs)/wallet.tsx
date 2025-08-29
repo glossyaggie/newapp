@@ -29,14 +29,14 @@ const STRIPE_PRICE_IDS: Record<string, string> = {
 function getPassPrice(passType: PassType): string {
   // Use the price from the database (synced from Stripe)
   const price = passType.price || 0
-  return `${price.toFixed(2)}`
+  return `$${price.toFixed(2)}`
 }
 
 function getPerClassPrice(passType: PassType): string {
   const price = passType.price || 0
   if (passType.credits && passType.credits > 0) {
     const perClass = price / passType.credits
-    return `${perClass.toFixed(2)}`
+    return `$${perClass.toFixed(2)}`
   }
   return '$0.00'
 }
@@ -113,6 +113,20 @@ export default function WalletScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Wallet</Text>
+          <TouchableOpacity 
+            style={[styles.syncButton, isSyncingPrices && styles.syncButtonDisabled]} 
+            onPress={() => syncPrices()}
+            disabled={isSyncingPrices}
+          >
+            <RefreshCw 
+              size={16} 
+              color={isSyncingPrices ? Colors.textLight : Colors.primary} 
+              style={isSyncingPrices ? styles.spinning : undefined}
+            />
+            <Text style={[styles.syncText, isSyncingPrices && styles.syncTextDisabled]}>
+              {isSyncingPrices ? 'Syncing...' : 'Sync Prices'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <WalletCard
@@ -160,8 +174,8 @@ export default function WalletScreen() {
                   <Text style={styles.priceText}>
                     {getPassPrice(item)}
                   </Text>
-                  {item.price === 0 && (
-                    <Text style={styles.priceWarning}>Price not synced</Text>
+                  {(item.price === 0 || item.price === null) && (
+                    <Text style={styles.priceWarning}>Syncing price...</Text>
                   )}
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
@@ -252,6 +266,9 @@ const styles = StyleSheet.create({
   },
   syncTextDisabled: {
     color: Colors.textLight,
+  },
+  syncButtonDisabled: {
+    opacity: 0.6,
   },
   spinning: {
     // Add spinning animation if needed
