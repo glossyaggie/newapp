@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
+import { CreditCard, Plus, Clock, Check, RefreshCw } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { WalletCard } from '@/components/WalletCard'
@@ -26,25 +26,14 @@ const STRIPE_PRICE_IDS: Record<string, string> = {
   'VIP Yearly': 'price_1S0rLOARpqh0Ut1y2lbJ17g7',
 }
 
-// Display prices (these should match your Stripe product prices)
-const PASS_PRICES: Record<string, number> = {
-  'Single Class': 25,
-  '5-Class Pack': 0.50, // Updated to match your actual Stripe price
-  '10-Class Pack': 200,
-  '25-Class Pack': 400,
-  'Weekly Unlimited': 45,
-  'Monthly Unlimited': 200,
-  'VIP Monthly': 300,
-  'VIP Yearly': 2500,
-}
-
 function getPassPrice(passType: PassType): string {
-  const price = PASS_PRICES[passType.name] || 0
-  return `$${price}`
+  // Use the price from the database (synced from Stripe)
+  const price = passType.price || 0
+  return `${price}`
 }
 
 function getPerClassPrice(passType: PassType): string {
-  const price = PASS_PRICES[passType.name] || 0
+  const price = passType.price || 0
   if (passType.credits && passType.credits > 0) {
     const perClass = price / passType.credits
     return `${perClass.toFixed(2)}`
@@ -54,7 +43,7 @@ function getPerClassPrice(passType: PassType): string {
 
 export default function WalletScreen() {
   const { user } = useAuth()
-  const { activePass, passTypes, hasLowCredits, isLoading } = usePasses()
+  const { activePass, passTypes, hasLowCredits, isLoading, syncPrices, isSyncingPrices } = usePasses()
   const [purchasingPassId, setPurchasingPassId] = useState<string | null>(null)
 
   const handlePurchasePass = async (passType: PassType) => {
@@ -63,7 +52,7 @@ export default function WalletScreen() {
       return
     }
 
-    const priceId = STRIPE_PRICE_IDS[passType.name]
+    const priceId = passType.stripe_price_id || STRIPE_PRICE_IDS[passType.name]
     if (!priceId) {
       Alert.alert('Error', 'Price ID not found for this pass type')
       return
@@ -124,6 +113,20 @@ export default function WalletScreen() {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Wallet</Text>
+          <TouchableOpacity 
+            style={styles.syncButton}
+            onPress={() => syncPrices()}
+            disabled={isSyncingPrices}
+          >
+            <RefreshCw 
+              size={20} 
+              color={isSyncingPrices ? Colors.textLight : Colors.primary}
+              style={isSyncingPrices ? styles.spinning : undefined}
+            />
+            <Text style={[styles.syncText, isSyncingPrices && styles.syncTextDisabled]}>
+              {isSyncingPrices ? 'Syncing...' : 'Sync Prices'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <WalletCard
@@ -171,6 +174,9 @@ export default function WalletScreen() {
                   <Text style={styles.priceText}>
                     {getPassPrice(item)}
                   </Text>
+                  {item.price === 0 && (
+                    <Text style={styles.priceWarning}>Price not synced</Text>
+                  )}
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
                       `${getPerClassPrice(item)} per class` : 
@@ -234,12 +240,40 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
   },
   title: {
     fontSize: 28,
     fontWeight: '800' as const,
     color: Colors.text,
+  },
+  syncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  syncText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  syncTextDisabled: {
+    color: Colors.textLight,
+  },
+  spinning: {
+    // Add spinning animation if needed
+  },
+  priceWarning: {
+    fontSize: 10,
+    color: Colors.error,
+    fontWeight: '500' as const,
   },
   section: {
     marginBottom: 20,

@@ -1,7 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useEffect } from 'react'
+import { syncStripePrices } from '@/lib/api/passes'
 import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
@@ -34,10 +35,30 @@ export function usePasses() {
     enabled: !!user,
   })
 
+  // Sync prices from Stripe
+  const syncPricesMutation = useMutation({
+    mutationFn: syncStripePrices,
+    onSuccess: () => {
+      console.log('✅ Prices synced, refreshing pass types...')
+      queryClient.invalidateQueries({ queryKey: ['pass-types'] })
+    },
+    onError: (error) => {
+      console.error('❌ Failed to sync prices:', error)
+    },
+  })
+
   // Get pass types for purchase
   const passTypesQuery = useQuery({
     queryKey: ['pass-types'] as const,
     queryFn: async (): Promise<PassType[]> => {
+      // First sync prices from Stripe to ensure they're up to date
+      try {
+        await syncStripePrices()
+        console.log('✅ Prices synced before fetching pass types')
+      } catch (error) {
+        console.warn('⚠️ Failed to sync prices, using cached data:', error)
+      }
+      
       const { data, error } = await supabase
         .from('pass_types')
         .select('*')
@@ -51,6 +72,8 @@ export function usePasses() {
       
       return data || []
     },
+    staleTime: 5 * 60 * 1000, // Consider data stale after 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   })
 
   // Subscribe to wallet updates via Realtime
@@ -81,5 +104,7 @@ export function usePasses() {
     isLoading,
     hasLowCredits,
     refetch: activePassQuery.refetch,
+    syncPrices: syncPricesMutation.mutate,
+    isSyncingPrices: syncPricesMutation.isPending,
   }
 }

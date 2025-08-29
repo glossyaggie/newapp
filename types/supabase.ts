@@ -55,9 +55,11 @@ export type Database = {
           credits: number | null
           duration_days: number
           stripe_price_id: string
+          price: number
           active: boolean
           sort_order: number
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -66,9 +68,11 @@ export type Database = {
           credits?: number | null
           duration_days: number
           stripe_price_id: string
+          price?: number
           active?: boolean
           sort_order?: number
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -77,9 +81,11 @@ export type Database = {
           credits?: number | null
           duration_days?: number
           stripe_price_id?: string
+          price?: number
           active?: boolean
           sort_order?: number
           created_at?: string
+          updated_at?: string
         }
       }
       user_passes: {

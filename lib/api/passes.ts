@@ -39,6 +39,20 @@ export async function getPassTypes() {
   return data
 }
 
+export async function syncStripePrices() {
+  console.log('🔄 Syncing prices from Stripe...')
+  
+  const { data, error } = await supabase.functions.invoke('sync_stripe_prices')
+  
+  if (error) {
+    console.error('❌ Error syncing Stripe prices:', error)
+    throw new Error(`Failed to sync prices: ${error.message}`)
+  }
+  
+  console.log('✅ Prices synced successfully:', data)
+  return data
+}
+
 export async function createStripeCheckout(priceId: string, passTypeId: string) {
   console.log('🔄 Creating Stripe checkout session...')
   
