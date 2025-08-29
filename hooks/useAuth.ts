@@ -55,7 +55,7 @@ export function useAuth() {
         const { data: userData } = await supabase.auth.getUser()
         const userMetadata = userData.user?.user_metadata || {}
         
-        const profileData: Database['public']['Tables']['profiles']['Insert'] = {
+        const profileData = {
           id: userId,
           first_name: userMetadata.first_name || null,
           last_name: userMetadata.last_name || null,
@@ -67,7 +67,7 @@ export function useAuth() {
         console.log('Creating profile with data:', profileData)
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .insert(profileData)
+          .insert(profileData as any)
           .select()
           .single()
 
