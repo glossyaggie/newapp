@@ -209,8 +209,8 @@ Deno.serve(async (req: Request) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'onboarding@resend.dev', // Using Resend's test domain - replace with your domain later
-        to: ['christopherascott@hotmail.com'], // Note: Resend requires domain verification for external emails
+        from: 'formking11@gmail.com',
+        to: ['formking11@gmail.com'],
         subject: `New Waiver Signed - ${profile.fullname}`,
         html: `
           <h2>New Waiver Signed</h2>
