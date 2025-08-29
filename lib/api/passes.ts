@@ -73,7 +73,7 @@ export async function createStripeCheckout(passType: PassType) {
       passTypeId: passType.id,
       userId: user.id,
       userEmail: user.email,
-      mode: passType.is_subscription ? 'subscription' : 'payment',
+      mode: passType.kind === 'unlimited' ? 'subscription' : 'payment',
     },
   })
 

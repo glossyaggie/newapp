@@ -44,7 +44,7 @@ export function usePasses() {
     queryFn: async (): Promise<PassType[]> => {
       const { data, error } = await supabase
         .from('pass_types')
-        .select('*')
+        .select('id,name,kind,credits,duration_days,stripe_price_id,price_amount_cents,currency,is_subscription,interval,interval_count,sort_order,active')
         .eq('active', true)
         .order('sort_order')
       

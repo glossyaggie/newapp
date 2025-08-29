@@ -156,8 +156,8 @@ export default function WalletScreen() {
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
                       `${formatPrice(Math.round(item.price_amount_cents / item.credits), item.currency)} per class` : 
-                      item.is_subscription ? (
-                        `per ${item.interval_count && item.interval_count > 1 ? `${item.interval_count} ` : ''}${item.interval}`
+                      item.kind === 'unlimited' ? (
+                        `per ${item.interval_count && item.interval_count > 1 ? `${item.interval_count} ` : ''}${item.interval || 'month'}`
                       ) : 'Best value'
                     }
                   </Text>
