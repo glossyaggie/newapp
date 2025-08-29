@@ -21,6 +21,38 @@ export async function getActivePass(): Promise<ActivePass | null> {
   return data
 }
 
+export interface CatalogPrice {
+  id: string
+  name: string
+  stripe_price_id: string
+  unit_amount: number
+  currency: string
+  recurring: boolean
+  per_class?: number
+  classes_count?: number
+  validity_days: number
+  pass_type: string
+}
+
+export async function getCatalogPrices(): Promise<CatalogPrice[]> {
+  console.log('🔄 Fetching catalog prices from Stripe...')
+  
+  const { data, error } = await supabase.functions.invoke('catalog_prices')
+  
+  if (error) {
+    console.error('❌ Error fetching catalog prices:', error)
+    throw new Error(`Failed to fetch catalog prices: ${error.message}`)
+  }
+  
+  if (!data?.prices) {
+    console.warn('⚠️ No prices returned from catalog_prices function')
+    return []
+  }
+  
+  console.log('✅ Catalog prices fetched:', data.prices.length, 'prices')
+  return data.prices
+}
+
 export async function getPassTypes() {
   console.log('🔄 Fetching pass types...')
   
@@ -39,21 +71,9 @@ export async function getPassTypes() {
   return data
 }
 
-export async function syncStripePrices() {
-  console.log('🔄 Syncing prices from Stripe...')
-  
-  const { data, error } = await supabase.functions.invoke('sync_stripe_prices')
-  
-  if (error) {
-    console.error('❌ Error syncing Stripe prices:', error)
-    throw new Error(`Failed to sync prices: ${error.message}`)
-  }
-  
-  console.log('✅ Prices synced successfully:', data)
-  return data
-}
 
-export async function createStripeCheckout(priceId: string, passTypeId: string) {
+
+export async function createStripeCheckout(catalogPrice: CatalogPrice) {
   console.log('🔄 Creating Stripe checkout session...')
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -63,10 +83,11 @@ export async function createStripeCheckout(priceId: string, passTypeId: string) 
 
   const { data, error } = await supabase.functions.invoke('create_checkout_session', {
     body: {
-      priceId,
-      passTypeId,
+      priceId: catalogPrice.stripe_price_id,
+      passTypeId: catalogPrice.id,
       userId: user.id,
       userEmail: user.email,
+      mode: catalogPrice.recurring ? 'subscription' : 'payment',
     },
   })
 

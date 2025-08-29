@@ -9,55 +9,60 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
-import { createStripeCheckout } from '@/lib/api/passes'
+import { createStripeCheckout, getCatalogPrices, type CatalogPrice } from '@/lib/api/passes'
 
-import type { Database } from '@/types/supabase'
-
-type PassType = Database['public']['Tables']['pass_types']['Row']
-
-// Get price from database (synced from Stripe)
-function getPassPrice(passType: PassType): string {
-  const price = passType.price || 0
-  return `${price.toFixed(2)}`
+// Format price using Intl.NumberFormat
+function formatPrice(amount: number, currency: string): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(amount / 100)
 }
 
-function getPerClassPrice(passType: PassType): string {
-  const price = passType.price || 0
-  if (passType.credits && passType.credits > 0) {
-    const perClass = price / passType.credits
-    return `${perClass.toFixed(2)}`
-  }
-  return '0.00'
-}
-
-// Get Stripe price ID for a pass type
-function getStripePriceId(passType: PassType): string | null {
-  return passType.stripe_price_id
+// Format per-class price
+function formatPerClassPrice(perClass: number, currency: string): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+  }).format(perClass / 100)
 }
 
 export default function WalletScreen() {
   const { user } = useAuth()
-  const { activePass, passTypes, hasLowCredits, isLoading } = usePasses()
+  const { activePass, hasLowCredits, isLoading: passesLoading } = usePasses()
+  const [catalogPrices, setCatalogPrices] = useState<CatalogPrice[]>([])
+  const [pricesLoading, setPricesLoading] = useState(true)
   const [purchasingPassId, setPurchasingPassId] = useState<string | null>(null)
 
-  const handlePurchasePass = async (passType: PassType) => {
+  // Fetch catalog prices on component mount
+  React.useEffect(() => {
+    const fetchCatalogPrices = async () => {
+      try {
+        setPricesLoading(true)
+        const prices = await getCatalogPrices()
+        setCatalogPrices(prices)
+      } catch (error) {
+        console.error('❌ Error fetching catalog prices:', error)
+      } finally {
+        setPricesLoading(false)
+      }
+    }
+
+    fetchCatalogPrices()
+  }, [])
+
+  const handlePurchasePass = async (catalogPrice: CatalogPrice) => {
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to purchase a pass.')
       return
     }
 
-    const priceId = getStripePriceId(passType)
-    if (!priceId) {
-      Alert.alert('Error', 'Price ID not found for this pass type')
-      return
-    }
-
-    setPurchasingPassId(passType.id)
+    setPurchasingPassId(catalogPrice.id)
 
     try {
-      console.log('🔄 Creating checkout session for:', passType.name, 'with price ID:', priceId)
+      console.log('🔄 Creating checkout session for:', catalogPrice.name, 'with price ID:', catalogPrice.stripe_price_id)
       
-      const checkoutUrl = await createStripeCheckout(priceId, passType.id)
+      const checkoutUrl = await createStripeCheckout(catalogPrice)
       
       console.log('✅ Checkout URL created:', checkoutUrl)
       
@@ -98,6 +103,8 @@ export default function WalletScreen() {
     )
   }
 
+  const isLoading = passesLoading || pricesLoading
+
   if (isLoading) {
     return <LoadingSpinner />
   }
@@ -123,7 +130,7 @@ export default function WalletScreen() {
         </View>
 
         <FlatList
-          data={passTypes}
+          data={catalogPrices}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <Card style={styles.passCard}>
@@ -131,33 +138,33 @@ export default function WalletScreen() {
                 <View style={styles.passInfo}>
                   <Text style={styles.passName}>{item.name}</Text>
                   <View style={styles.passDetails}>
-                    {item.kind === 'unlimited' ? (
+                    {item.pass_type === 'unlimited' ? (
                       <View style={styles.passDetail}>
                         <Text style={styles.passDetailText}>Unlimited Classes</Text>
                       </View>
                     ) : (
                       <View style={styles.passDetail}>
                         <Text style={styles.passDetailText}>
-                          {item.credits} {item.credits === 1 ? 'Class' : 'Classes'}
+                          {item.classes_count} {item.classes_count === 1 ? 'Class' : 'Classes'}
                         </Text>
                       </View>
                     )}
                     <View style={styles.passDetail}>
                       <Clock size={14} color={Colors.textSecondary} />
                       <Text style={styles.passDetailText}>
-                        {item.duration_days} days validity
+                        {item.validity_days} days validity
                       </Text>
                     </View>
                   </View>
                 </View>
                 <View style={styles.passPrice}>
                   <Text style={styles.priceText}>
-                    {getPassPrice(item)}
+                    {formatPrice(item.unit_amount, item.currency)}
                   </Text>
                   <Text style={styles.priceSubtext}>
-                    {item.kind === 'pack' && item.credits ? 
-                      `${getPerClassPrice(item)} per class` : 
-                      'Best value'
+                    {item.pass_type === 'pack' && item.per_class ? 
+                      `${formatPerClassPrice(item.per_class, item.currency)} per class` : 
+                      item.recurring ? 'Recurring' : 'Best value'
                     }
                   </Text>
                 </View>
@@ -170,7 +177,7 @@ export default function WalletScreen() {
                 disabled={purchasingPassId === item.id}
               />
 
-              {item.kind === 'unlimited' && (
+              {item.pass_type === 'unlimited' && (
                 <View style={styles.popularBadge}>
                   <Text style={styles.popularText}>Most Popular</Text>
                 </View>
@@ -180,6 +187,15 @@ export default function WalletScreen() {
           scrollEnabled={false}
           contentContainerStyle={styles.passList}
         />
+
+        {catalogPrices.length === 0 && !pricesLoading && (
+          <Card style={styles.errorCard}>
+            <Text style={styles.errorTitle}>No Passes Available</Text>
+            <Text style={styles.errorText}>
+              Unable to load pass prices. Please try again later.
+            </Text>
+          </Card>
+        )}
 
         <Card style={styles.benefitsCard}>
           <Text style={styles.benefitsTitle}>Pass Benefits</Text>
@@ -345,5 +361,23 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center' as const,
     lineHeight: 24,
+  },
+  errorCard: {
+    marginBottom: 20,
+    alignItems: 'center' as const,
+    padding: 20,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 8,
+    textAlign: 'center' as const,
+  },
+  errorText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 20,
   },
 })

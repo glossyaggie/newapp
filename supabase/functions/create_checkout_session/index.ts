@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { priceId, passTypeId, userId, userEmail } = await req.json()
+    const { priceId, passTypeId, userId, userEmail, mode } = await req.json()
 
     if (!priceId || !passTypeId || !userId || !userEmail) {
       throw new Error('Missing required parameters')
@@ -30,17 +30,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Get pass type details
-    const { data: passType, error: passTypeError } = await supabase
-      .from('pass_types')
-      .select('*')
-      .eq('id', passTypeId)
-      .single()
-
-    if (passTypeError || !passType) {
-      throw new Error('Pass type not found')
-    }
-
     // Create Stripe checkout session
     const session = await stripeClient.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -50,7 +39,7 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      mode: passType.kind === 'unlimited' ? 'subscription' : 'payment',
+      mode: mode || 'payment',
       success_url: `${req.headers.get('origin') || 'http://localhost:8081'}/wallet?success=true`,
       cancel_url: `${req.headers.get('origin') || 'http://localhost:8081'}/wallet?canceled=true`,
       client_reference_id: userId,
