@@ -1,5 +1,10 @@
 import { supabase } from '../supabase'
-import { format, startOfWeek, endOfWeek, addDays } from 'date-fns'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
+import type { Database } from '@/types/supabase'
+
+type ClassWithBookings = Database['public']['Tables']['class_schedule']['Row'] & {
+  class_bookings: Database['public']['Tables']['class_bookings']['Row'][]
+}
 
 export interface ScheduleFilters {
   date?: string
@@ -18,7 +23,7 @@ export async function fetchWeekSchedule(startDate: Date, filters: ScheduleFilter
     .from('class_schedule')
     .select(`
       *,
-      class_bookings!inner (
+      class_bookings (
         id,
         user_id,
         status
@@ -115,6 +120,6 @@ export async function getClassWithBookings(classId: string) {
     throw error
   }
   
-  console.log('✅ Class details fetched:', data?.title)
-  return data
+  console.log('✅ Class details fetched:', (data as ClassWithBookings)?.title)
+  return data as ClassWithBookings
 }

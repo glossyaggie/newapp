@@ -13,6 +13,12 @@ ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE device_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE waiver_documents ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "System can insert profiles" ON profiles;
+
 -- Profiles: users can manage their own profile
 CREATE POLICY "Users can view own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
@@ -20,12 +26,9 @@ CREATE POLICY "Users can view own profile" ON profiles
 CREATE POLICY "Users can update own profile" ON profiles
   FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Users can insert own profile" ON profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-
--- Allow the trigger function to insert profiles
-CREATE POLICY "System can insert profiles" ON profiles
-  FOR INSERT WITH CHECK (true);
+-- Allow both users and system to insert profiles (for signup and trigger)
+CREATE POLICY "Allow profile creation" ON profiles
+  FOR INSERT WITH CHECK (auth.uid() = id OR auth.role() = 'service_role');
 
 -- Pass types: everyone can read active ones
 CREATE POLICY "Anyone can view active pass types" ON pass_types

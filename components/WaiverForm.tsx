@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, Alert, ScrollView, Dimensions, Platform, PanResponder, Linking } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/supabase'
 
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -73,12 +74,14 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
       const user = await supabase.auth.getUser()
       if (!user.data.user) throw new Error('User not authenticated')
 
+      const updateData: Database['public']['Tables']['profiles']['Update'] = {
+        waiver_signed_at: new Date().toISOString(),
+        waiver_signature_data: signaturePath
+      }
+      
       const { error } = await (supabase as any)
         .from('profiles')
-        .update({
-          waiver_signed_at: new Date().toISOString(),
-          waiver_signature_data: signaturePath
-        })
+        .update(updateData)
         .eq('id', user.data.user.id)
 
       if (error) throw error

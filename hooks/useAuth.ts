@@ -64,9 +64,10 @@ export function useAuth() {
           role: 'user' as const,
         }
         
+        console.log('Creating profile with data:', profileData)
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .insert(profileData as any)
+          .insert(profileData)
           .select()
           .single()
 
