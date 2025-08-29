@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
-import { View, Text, StyleSheet, Alert, Platform, TextInput } from 'react-native'
+import React, { useState, useRef } from 'react'
+import { View, Text, StyleSheet, Alert, Platform, TextInput, Pressable } from 'react-native'
 import { Button } from './ui/Button'
 import { Card } from './ui/Card'
 import { LoadingSpinner } from './ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { Upload, CheckCircle, AlertCircle, FileText } from 'lucide-react-native'
+import { Upload, CheckCircle, AlertCircle, FileText, File } from 'lucide-react-native'
 
 interface UploadResult {
   success: boolean
@@ -20,52 +20,34 @@ export function ScheduleUpload() {
   const [csvContent, setCsvContent] = useState('')
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
   const [replaceExisting, setReplaceExisting] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [selectedFileName, setSelectedFileName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const handleFileRead = (file: File) => {
+    console.log('Reading file:', file.name, 'Type:', file.type)
+    setSelectedFileName(file.name)
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      console.log('File content loaded, length:', content.length)
+      setCsvContent(content)
+      setUploadResult(null)
+    }
+    reader.onerror = (error) => {
+      console.error('File read error:', error)
+      Alert.alert('Error', 'Failed to read the selected file')
+    }
+    reader.readAsText(file)
+  }
 
   const handleFileSelect = () => {
     console.log('File select clicked, platform:', Platform.OS)
     
     if (Platform.OS === 'web') {
-      try {
-        // Create file input for web
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = '.csv,text/csv'
-        input.style.display = 'none'
-        
-        input.onchange = (e: any) => {
-          console.log('File selected:', e.target.files[0])
-          const file = e.target.files[0]
-          if (file) {
-            console.log('File type:', file.type, 'File name:', file.name)
-            const reader = new FileReader()
-            reader.onload = (event) => {
-              const content = event.target?.result as string
-              console.log('File content loaded, length:', content.length)
-              setCsvContent(content)
-              setUploadResult(null)
-            }
-            reader.onerror = (error) => {
-              console.error('File read error:', error)
-              Alert.alert('Error', 'Failed to read the selected file')
-            }
-            reader.readAsText(file)
-          }
-        }
-        
-        // Add to DOM temporarily to ensure it works
-        document.body.appendChild(input)
-        input.click()
-        
-        // Clean up after a short delay
-        setTimeout(() => {
-          if (document.body.contains(input)) {
-            document.body.removeChild(input)
-          }
-        }, 1000)
-        
-      } catch (error) {
-        console.error('File picker error:', error)
-        Alert.alert('Error', 'File picker not available. Please use the paste option below.')
+      if (fileInputRef.current) {
+        fileInputRef.current.click()
       }
     } else {
       // For mobile, show prompt to paste CSV content
@@ -76,12 +58,44 @@ export function ScheduleUpload() {
           if (text) {
             setCsvContent(text)
             setUploadResult(null)
+            setSelectedFileName('Pasted content')
           }
         },
         'plain-text',
         '',
         'default'
       )
+    }
+  }
+
+  const handleDragOver = (e: any) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault()
+      setIsDragOver(true)
+    }
+  }
+
+  const handleDragLeave = (e: any) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault()
+      setIsDragOver(false)
+    }
+  }
+
+  const handleDrop = (e: any) => {
+    if (Platform.OS === 'web') {
+      e.preventDefault()
+      setIsDragOver(false)
+      
+      const files = e.dataTransfer.files
+      if (files.length > 0) {
+        const file = files[0]
+        if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+          handleFileRead(file)
+        } else {
+          Alert.alert('Error', 'Please select a CSV file')
+        }
+      }
     }
   }
 
@@ -193,11 +207,75 @@ PILATES CORE,Emma Wilson,2025/08/30,Friday,9:00 AM,10:00 AM,18`
         </View>
       </View>
 
-      <Button
-        title={Platform.OS === 'web' ? "Select CSV File" : "Paste CSV Content"}
-        onPress={handleFileSelect}
-        style={styles.selectButton}
-      />
+      {Platform.OS === 'web' && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) {
+              handleFileRead(file)
+            }
+          }}
+        />
+      )}
+
+      {Platform.OS === 'web' ? (
+        <div
+          style={[
+            styles.dropZone,
+            isDragOver && styles.dropZoneActive,
+            csvContent && styles.dropZoneWithContent
+          ] as any}
+          onClick={handleFileSelect}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <View style={styles.dropZoneContent}>
+            <File size={32} color={isDragOver ? "#007AFF" : "#6B7280"} />
+            <Text style={[
+              styles.dropZoneTitle,
+              isDragOver && styles.dropZoneTitleActive
+            ]}>
+              {isDragOver ? 'Drop CSV file here' : 'Click to select CSV file or drag & drop'}
+            </Text>
+            {selectedFileName && (
+              <Text style={styles.selectedFileName}>
+                Selected: {selectedFileName}
+              </Text>
+            )}
+            <Text style={styles.dropZoneSubtitle}>
+              Supports .csv files up to 10MB
+            </Text>
+          </View>
+        </div>
+      ) : (
+        <Pressable
+          style={[
+            styles.dropZone,
+            csvContent && styles.dropZoneWithContent
+          ]}
+          onPress={handleFileSelect}
+        >
+          <View style={styles.dropZoneContent}>
+            <File size={32} color="#6B7280" />
+            <Text style={styles.dropZoneTitle}>
+              Tap to paste CSV content
+            </Text>
+            {selectedFileName && (
+              <Text style={styles.selectedFileName}>
+                Selected: {selectedFileName}
+              </Text>
+            )}
+            <Text style={styles.dropZoneSubtitle}>
+              Copy your CSV data and paste it here
+            </Text>
+          </View>
+        </Pressable>
+      )}
 
       <View style={styles.textAreaContainer}>
         <Text style={styles.textAreaLabel}>
@@ -343,8 +421,52 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     lineHeight: 16,
   },
-  selectButton: {
+  dropZone: {
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 24,
     marginBottom: 16,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  dropZoneActive: {
+    borderColor: '#007AFF',
+    backgroundColor: '#EBF8FF',
+  },
+  dropZoneWithContent: {
+    borderColor: '#10B981',
+    backgroundColor: '#ECFDF5',
+  },
+  dropZoneContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropZoneTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  dropZoneTitleActive: {
+    color: '#007AFF',
+  },
+  dropZoneSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  selectedFileName: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
   },
   previewContainer: {
     backgroundColor: '#F9FAFB',
