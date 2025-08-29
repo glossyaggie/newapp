@@ -66,6 +66,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
+          placeholderTextColor={Colors.textLight}
         />
         <TextInput
           style={styles.input}
@@ -74,6 +75,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           onChangeText={setPassword}
           secureTextEntry
           autoComplete="password"
+          placeholderTextColor={Colors.textLight}
         />
 
         <Button
@@ -122,6 +124,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     backgroundColor: Colors.white,
+    color: Colors.text,
   },
   authButton: {
     marginTop: 8,

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useEffect } from 'react'
@@ -7,40 +7,26 @@ export function usePasses() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  // Get active pass
+  // Get active pass (simplified for now - will use RPC later)
   const activePassQuery = useQuery({
     queryKey: ['active-pass', user?.id],
     queryFn: async () => {
       if (!user) return null
       
-      const { data, error } = await supabase.rpc('get_active_pass')
-      
-      if (error) {
-        console.error('Error fetching active pass:', error)
-        throw error
-      }
-      
-      return data
+      // For now, return null until we set up the database
+      // TODO: Replace with supabase.rpc('get_active_pass') once DB is set up
+      return null
     },
     enabled: !!user,
   })
 
-  // Get pass types for purchase
+  // Get pass types for purchase (simplified for now)
   const passTypesQuery = useQuery({
     queryKey: ['pass-types'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('pass_types')
-        .select('*')
-        .eq('active', true)
-        .order('sort_order')
-      
-      if (error) {
-        console.error('Error fetching pass types:', error)
-        throw error
-      }
-      
-      return data
+      // For now, return empty array until we set up the database
+      // TODO: Replace with actual query once DB is set up
+      return []
     },
   })
 
@@ -64,7 +50,7 @@ export function usePasses() {
   const activePass = activePassQuery.data
   const passTypes = passTypesQuery.data || []
   const isLoading = activePassQuery.isLoading || passTypesQuery.isLoading
-  const hasLowCredits = activePass && !activePass.is_unlimited && activePass.remaining_credits <= 2
+  const hasLowCredits = false // Will implement once we have active pass data
 
   return {
     activePass,

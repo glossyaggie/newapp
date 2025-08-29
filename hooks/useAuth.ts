@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
-import type { Database } from '@/lib/supabase'
+import type { Database } from '@/types/supabase'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -56,8 +56,8 @@ export function useAuth() {
           .from('profiles')
           .insert({
             id: userId,
-            role: 'user',
-          })
+            role: 'user' as const,
+          } as any)
           .select()
           .single()
 
