@@ -13,10 +13,10 @@ import type { Database } from '@/types/supabase'
 
 type PassType = Database['public']['Tables']['pass_types']['Row']
 
-// Price mapping based on your Stripe products
+// Price mapping based on your Stripe products (in AUD)
 const PASS_PRICES: Record<string, number> = {
   'Single Class': 25,
-  '5-Class Pack': 100,
+  '5-Class Pack': 0.50, // A$0.50 as shown in Stripe
   '10-Class Pack': 200,
   '25-Class Pack': 400,
   'Weekly Unlimited': 45,
@@ -33,8 +33,8 @@ function getPassPrice(passType: PassType): string {
 function getPerClassPrice(passType: PassType): string {
   const price = PASS_PRICES[passType.name] || 0
   if (passType.credits && passType.credits > 0) {
-    const perClass = Math.round(price / passType.credits)
-    return `$${perClass}`
+    const perClass = price / passType.credits
+    return `${perClass.toFixed(2)}`
   }
   return '$0'
 }
