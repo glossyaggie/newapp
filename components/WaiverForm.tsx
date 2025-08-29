@@ -31,6 +31,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   const pathRef = useRef<string>('')
   const currentPointRef = useRef<{ x: number; y: number } | null>(null)
   const [strokePaths, setStrokePaths] = useState<string[]>([])
+  const [currentStroke, setCurrentStroke] = useState<string>('')
   const currentStrokeRef = useRef<string>('')
 
   const panResponder = PanResponder.create({
@@ -57,16 +58,10 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
       const x = Math.max(0, Math.min(locationX, SIGNATURE_WIDTH))
       const y = Math.max(0, Math.min(locationY, SIGNATURE_HEIGHT))
       
-      // Add smooth curve using quadratic bezier
-      const prevX = currentPointRef.current.x
-      const prevY = currentPointRef.current.y
-      const midX = (prevX + x) / 2
-      const midY = (prevY + y) / 2
-      
-      currentStrokeRef.current += ` Q${prevX},${prevY} ${midX},${midY}`
+      // Add smooth line to current point
+      currentStrokeRef.current += ` L${x},${y}`
+      setCurrentStroke(currentStrokeRef.current)
       currentPointRef.current = { x, y }
-      
-
     },
 
     onPanResponderRelease: () => {
@@ -83,6 +78,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
 
   const clearSignature = () => {
     setStrokePaths([])
+    setCurrentStroke('')
     pathRef.current = ''
     currentStrokeRef.current = ''
     currentPointRef.current = null
@@ -117,6 +113,8 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
         const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
         const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
         
+        console.log('Sending waiver email for user:', user.data.user.id)
+        
         const response = await fetch(`${supabaseUrl}/functions/v1/waiver_email`, {
           method: 'POST',
           headers: {
@@ -130,11 +128,16 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
           })
         })
         
+        const responseText = await response.text()
+        
         if (!response.ok) {
-          console.warn('Failed to send waiver email:', await response.text())
+          console.error('Failed to send waiver email. Status:', response.status)
+          console.error('Response:', responseText)
+        } else {
+          console.log('Waiver email sent successfully:', responseText)
         }
       } catch (emailError) {
-        console.warn('Error sending waiver email:', emailError)
+        console.error('Error sending waiver email:', emailError)
       }
 
       Alert.alert('Success', 'Waiver signed successfully!', [
@@ -240,9 +243,9 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
                       strokeLinejoin="round"
                     />
                   ))}
-                  {isDrawing && currentStrokeRef.current && (
+                  {isDrawing && currentStroke && (
                     <Path
-                      d={currentStrokeRef.current}
+                      d={currentStroke}
                       stroke={Colors.primary}
                       strokeWidth={2.5}
                       fill="none"
