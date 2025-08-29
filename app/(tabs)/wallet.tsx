@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
@@ -9,14 +9,64 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
+import type { Database } from '@/types/supabase'
+
+type PassType = Database['public']['Tables']['pass_types']['Row']
+
+// Price mapping based on your Stripe products
+const PASS_PRICES: Record<string, number> = {
+  'Single Class': 25,
+  '5 Class Pass': 100,
+  '10 Class Pass': 200,
+  '25 Class Pass': 400,
+  'Weekly Unlimited': 45,
+  'Monthly Unlimited': 200,
+  'VIP Monthly': 300,
+  'VIP Yearly': 2500,
+}
+
+function getPassPrice(passType: PassType): string {
+  const price = PASS_PRICES[passType.name] || 0
+  return `${price}`
+}
+
+function getPerClassPrice(passType: PassType): string {
+  const price = PASS_PRICES[passType.name] || 0
+  if (passType.credits && passType.credits > 0) {
+    const perClass = Math.round(price / passType.credits)
+    return `${perClass}`
+  }
+  return '$0'
+}
 
 export default function WalletScreen() {
   const { user } = useAuth()
   const { activePass, passTypes, hasLowCredits, isLoading } = usePasses()
 
-  const handlePurchasePass = (passTypeId: string) => {
-    // TODO: Implement Stripe checkout
-    console.log('Purchase pass:', passTypeId)
+  const handlePurchasePass = async (passType: PassType) => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to purchase a pass.')
+      return
+    }
+
+    try {
+      // Create Stripe checkout URL
+      const checkoutUrl = `https://buy.stripe.com/test_${passType.stripe_price_id}?client_reference_id=${user.id}&prefilled_email=${user.email}`
+      
+      if (Platform.OS === 'web') {
+        window.open(checkoutUrl, '_blank')
+      } else {
+        const supported = await Linking.canOpenURL(checkoutUrl)
+        if (supported) {
+          await Linking.openURL(checkoutUrl)
+        } else {
+          Alert.alert('Error', 'Unable to open checkout page')
+        }
+      }
+    } catch (error) {
+      console.error('Error opening checkout:', error)
+      Alert.alert('Error', 'Failed to open checkout page')
+    }
   }
 
   const handleTopUp = () => {
@@ -49,8 +99,8 @@ export default function WalletScreen() {
         </View>
 
         <WalletCard
-          activePass={activePass}
-          hasLowCredits={hasLowCredits}
+          activePass={activePass || null}
+          hasLowCredits={hasLowCredits || false}
           onTopUp={handleTopUp}
         />
 
@@ -90,10 +140,12 @@ export default function WalletScreen() {
                   </View>
                 </View>
                 <View style={styles.passPrice}>
-                  <Text style={styles.priceText}>$99</Text>
+                  <Text style={styles.priceText}>
+                    {getPassPrice(item)}
+                  </Text>
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
-                      `$${(99 / item.credits).toFixed(0)} per class` : 
+                      `${getPerClassPrice(item)} per class` : 
                       'Best value'
                     }
                   </Text>
@@ -102,7 +154,7 @@ export default function WalletScreen() {
 
               <Button
                 title="Purchase"
-                onPress={() => handlePurchasePass(item.id)}
+                onPress={() => handlePurchasePass(item)}
                 style={styles.purchaseButton}
               />
 

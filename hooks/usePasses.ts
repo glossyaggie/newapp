@@ -2,31 +2,54 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useEffect } from 'react'
+import type { Database } from '@/types/supabase'
+
+type PassType = Database['public']['Tables']['pass_types']['Row']
+type ActivePass = {
+  remaining_credits: number
+  valid_until: string
+  is_unlimited: boolean
+  pass_name: string
+} | null
 
 export function usePasses() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  // Get active pass (simplified for now - will use RPC later)
+  // Get active pass
   const activePassQuery = useQuery({
-    queryKey: ['active-pass', user?.id],
-    queryFn: async () => {
+    queryKey: ['active-pass', user?.id] as const,
+    queryFn: async (): Promise<ActivePass> => {
       if (!user) return null
       
-      // For now, return null until we set up the database
-      // TODO: Replace with supabase.rpc('get_active_pass') once DB is set up
-      return null
+      const { data, error } = await supabase.rpc('get_active_pass')
+      
+      if (error) {
+        console.error('Error fetching active pass:', error)
+        return null
+      }
+      
+      return data
     },
     enabled: !!user,
   })
 
-  // Get pass types for purchase (simplified for now)
+  // Get pass types for purchase
   const passTypesQuery = useQuery({
-    queryKey: ['pass-types'],
-    queryFn: async () => {
-      // For now, return empty array until we set up the database
-      // TODO: Replace with actual query once DB is set up
-      return []
+    queryKey: ['pass-types'] as const,
+    queryFn: async (): Promise<PassType[]> => {
+      const { data, error } = await supabase
+        .from('pass_types')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order')
+      
+      if (error) {
+        console.error('Error fetching pass types:', error)
+        throw error
+      }
+      
+      return data || []
     },
   })
 
@@ -50,7 +73,7 @@ export function usePasses() {
   const activePass = activePassQuery.data
   const passTypes = passTypesQuery.data || []
   const isLoading = activePassQuery.isLoading || passTypesQuery.isLoading
-  const hasLowCredits = false // Will implement once we have active pass data
+  const hasLowCredits = activePass && !activePass.is_unlimited && activePass.remaining_credits <= 2
 
   return {
     activePass,
