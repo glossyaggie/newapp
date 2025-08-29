@@ -124,8 +124,7 @@ export function ScheduleUpload() {
       <View style={styles.formatExample}>
         <Text style={styles.exampleTitle}>Expected CSV Format:</Text>
         <Text style={styles.exampleText}>
-          title,instructor,date,day,start_time,end_time,capacity{"\n"}
-          HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 PM,24
+          title,instructor,date,day,start_time,end_time,capacity{"\n"}HOT HIIT PILATES,Mel Lawson,2025/08/25,Monday,6:00 AM,7:00 PM,24
         </Text>
       </View>
 
