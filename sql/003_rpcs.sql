@@ -302,7 +302,6 @@ $$;
 
 -- Admin function to upsert class
 CREATE OR REPLACE FUNCTION admin_upsert_class(
-  p_id UUID DEFAULT NULL,
   p_title TEXT,
   p_instructor TEXT,
   p_date DATE,
@@ -310,6 +309,7 @@ CREATE OR REPLACE FUNCTION admin_upsert_class(
   p_end_time TIME,
   p_capacity INTEGER,
   p_duration_min INTEGER,
+  p_id UUID DEFAULT NULL,
   p_heat_c INTEGER DEFAULT NULL,
   p_level TEXT DEFAULT NULL,
   p_notes TEXT DEFAULT NULL
