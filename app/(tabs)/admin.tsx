@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Plus, Calendar, Users, Settings, BarChart3 } from 'lucide-react-native'
+import { Plus, Calendar, Users, Settings, BarChart3, Upload } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
 import { AddClassForm } from '@/components/AddClassForm'
+import { BulkScheduleUpload } from '@/components/BulkScheduleUpload'
 
 export default function AdminScreen() {
   const { isAdmin } = useAuth()
   const [showAddClass, setShowAddClass] = useState(false)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   if (!isAdmin) {
     return (
@@ -66,9 +68,20 @@ export default function AdminScreen() {
             </Card>
           </TouchableOpacity>
 
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => setShowBulkUpload(!showBulkUpload)}
+          >
+            <Card style={styles.actionCardInner}>
+              <Upload size={32} color={Colors.secondary} />
+              <Text style={styles.actionTitle}>Bulk Upload</Text>
+              <Text style={styles.actionSubtitle}>Upload multiple classes via CSV</Text>
+            </Card>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.actionCard}>
             <Card style={styles.actionCardInner}>
-              <Calendar size={32} color={Colors.secondary} />
+              <Calendar size={32} color={Colors.warning} />
               <Text style={styles.actionTitle}>Manage Classes</Text>
               <Text style={styles.actionSubtitle}>Edit, cancel, or add classes</Text>
             </Card>
@@ -76,7 +89,7 @@ export default function AdminScreen() {
 
           <TouchableOpacity style={styles.actionCard}>
             <Card style={styles.actionCardInner}>
-              <Users size={32} color={Colors.warning} />
+              <Users size={32} color={Colors.success} />
               <Text style={styles.actionTitle}>Class Rosters</Text>
               <Text style={styles.actionSubtitle}>View bookings & check-ins</Text>
             </Card>
@@ -84,7 +97,7 @@ export default function AdminScreen() {
 
           <TouchableOpacity style={styles.actionCard}>
             <Card style={styles.actionCardInner}>
-              <BarChart3 size={32} color={Colors.success} />
+              <BarChart3 size={32} color={Colors.primary} />
               <Text style={styles.actionTitle}>Analytics</Text>
               <Text style={styles.actionSubtitle}>Revenue & attendance reports</Text>
             </Card>
@@ -104,6 +117,14 @@ export default function AdminScreen() {
           <AddClassForm 
             onSuccess={() => setShowAddClass(false)}
             onCancel={() => setShowAddClass(false)}
+          />
+        )}
+
+        {/* Bulk Upload Form */}
+        {showBulkUpload && (
+          <BulkScheduleUpload 
+            onSuccess={() => setShowBulkUpload(false)}
+            onCancel={() => setShowBulkUpload(false)}
           />
         )}
 
