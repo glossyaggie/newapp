@@ -1,0 +1,12 @@
+export const BOOKING_LIMITS = {
+  CANCEL_CUTOFF_MINUTES: 120,
+  BOOKING_CUTOFF_MINUTES: 5,
+  LOW_CREDIT_THRESHOLD: 2,
+  CAPACITY_WARNING_THRESHOLD: 5,
+  CAPACITY_CRITICAL_THRESHOLD: 2,
+} as const
+
+export const PASS_TYPES = {
+  PACK: 'pack',
+  UNLIMITED: 'unlimited',
+} as const
