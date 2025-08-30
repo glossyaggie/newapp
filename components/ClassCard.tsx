@@ -50,7 +50,26 @@ export function ClassCard({
     return `${availableSpots} spots left`
   }
 
+  const getBookingButtonText = () => {
+    if (isBooked) {
+      return classItem.user_booking?.status === 'waitlist' ? 'Waitlist' : 'Booked'
+    }
+    return 'Book'
+  }
+
+  const getBookingButtonVariant = () => {
+    if (isBooked) {
+      return classItem.user_booking?.status === 'waitlist' ? 'outline' : 'primary'
+    }
+    return 'primary'
+  }
+
   const handleBookingAction = () => {
+    // Prevent multiple rapid clicks
+    if (isBooking || isCancelling) {
+      return
+    }
+    
     if (isBooked && classItem.user_booking) {
       onCancel(classItem.user_booking.id)
     } else {
@@ -62,9 +81,24 @@ export function ClassCard({
     <Card style={styles.card}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{classItem.title}</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>{classItem.title}</Text>
+            {isBooked && (
+              <View style={[
+                styles.bookingBadge,
+                { backgroundColor: classItem.user_booking?.status === 'waitlist' ? Colors.warning : Colors.success }
+              ]}>
+                <Text style={styles.bookingBadgeText}>
+                  {classItem.user_booking?.status === 'waitlist' ? 'Waitlist' : 'Booked'}
+                </Text>
+              </View>
+            )}
+          </View>
           <TouchableOpacity
-            onPress={() => onToggleFavorite(classItem.id, classItem.is_favorite)}
+            onPress={() => {
+              console.log('🔍 Heart button pressed:', { classId: classItem.id, isFavorite: classItem.is_favorite })
+              onToggleFavorite(classItem.id, classItem.is_favorite)
+            }}
             style={styles.favoriteButton}
           >
             <Heart
@@ -108,11 +142,11 @@ export function ClassCard({
         </View>
 
         <Button
-          title={isBooked ? 'Cancel' : 'Book'}
+          title={getBookingButtonText()}
           onPress={handleBookingAction}
-          variant={isBooked ? 'outline' : 'primary'}
+          variant={getBookingButtonVariant()}
           size="small"
-          disabled={!canBook || (!isBooked && isFull)}
+          disabled={!canBook || (!isBooked && isFull) || isBooking || isCancelling}
           loading={isBooking || isCancelling}
           style={styles.bookButton}
         />
@@ -138,11 +172,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 4,
   },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700' as const,
     color: Colors.text,
     flex: 1,
+  },
+  bookingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  bookingBadgeText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.white,
+    textTransform: 'uppercase' as const,
   },
   favoriteButton: {
     padding: 4,

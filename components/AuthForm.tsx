@@ -34,7 +34,6 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
     setLoading(true)
     try {
       if (isSignUp) {
-        console.log('Attempting to sign up user with:', { email, firstName, lastName, phone })
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -48,10 +47,8 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           }
         })
         if (error) {
-          console.error('Signup error:', error)
           throw error
         }
-        console.log('Signup successful:', data)
         if (data.user && !data.session) {
           Alert.alert('Success', 'Check your email for the confirmation link!')
         } else {
@@ -68,7 +65,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
       }
     } catch (error: any) {
       console.error('Auth error:', error)
-      Alert.alert('Error', `Database error saving new user: ${error.message}`)
+      Alert.alert('Error', `Authentication failed: ${error.message}`)
     } finally {
       setLoading(false)
     }

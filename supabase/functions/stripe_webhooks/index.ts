@@ -14,15 +14,26 @@ serve(async (req: Request) => {
   }
 
   try {
+    console.log('🔔 Webhook received:', req.method, req.url)
+    
     const signature = req.headers.get('stripe-signature')
     const body = await req.text()
+    
+    console.log('📝 Webhook body length:', body.length)
+    console.log('🔑 Signature present:', !!signature)
     
     if (!signature) {
       throw new Error('No Stripe signature found')
     }
 
     // Verify webhook signature
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')!
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    console.log('🔐 Webhook secret present:', !!webhookSecret)
+    
+    if (!webhookSecret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET not configured')
+    }
+    
     const { default: Stripe } = await import('https://esm.sh/stripe@14.21.0')
     const stripeClient = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
       apiVersion: '2023-10-16',
@@ -30,10 +41,11 @@ serve(async (req: Request) => {
 
     let event
     try {
-      event = stripeClient.webhooks.constructEvent(body, signature, webhookSecret)
+      event = await stripeClient.webhooks.constructEventAsync(body, signature, webhookSecret)
+      console.log('✅ Webhook signature verified, event type:', event.type)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      console.error('Webhook signature verification failed:', errorMessage)
+      console.error('❌ Webhook signature verification failed:', errorMessage)
       return new Response(`Webhook Error: ${errorMessage}`, { status: 400 })
     }
 
@@ -43,57 +55,42 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Log webhook for idempotency
-    const { error: logError } = await supabase
-      .from('stripe_webhooks')
-      .insert({
-        type: event.type,
-        payload: event,
-      })
-
-    if (logError && !logError.message.includes('duplicate key')) {
-      throw logError
-    }
+    console.log('✅ Supabase client initialized')
 
     // Handle different event types
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
-        console.log('Processing checkout session:', session.id)
+        console.log('🎯 Processing checkout session:', session.id)
+        console.log('🏷️ Session metadata:', session.metadata)
 
-        // Get price ID from session metadata first, then try to expand line items if needed
-        let priceId = session.metadata?.price_id
+        // Get pass type ID and user ID from metadata
+        const passTypeId = session.metadata?.passTypeId
+        const userId = session.metadata?.userId
         
-        if (!priceId) {
-          // If no price ID in metadata, expand the session to get line items
-          const expandedSession = await stripeClient.checkout.sessions.retrieve(session.id, {
-            expand: ['line_items']
-          })
-          priceId = expandedSession.line_items?.data?.[0]?.price?.id
-        }
-        
-        console.log('Session metadata:', session.metadata)
-        console.log('Price ID found:', priceId)
+        console.log('🎫 Pass type ID from metadata:', passTypeId)
+        console.log('👤 User ID from metadata:', userId)
 
-        if (!priceId) {
-          throw new Error('No price ID found in session')
+        if (!passTypeId) {
+          throw new Error('No pass type ID found in session metadata')
         }
 
-        // Find matching pass type
+        if (!userId) {
+          throw new Error('No user ID found in session metadata')
+        }
+
+        // Get pass type details
         const { data: passType, error: passTypeError } = await supabase
           .from('pass_types')
           .select('*')
-          .eq('stripe_price_id', priceId)
+          .eq('id', passTypeId)
           .single()
 
         if (passTypeError || !passType) {
-          throw new Error(`Pass type not found for price ID: ${priceId}`)
+          throw new Error(`Pass type not found for ID: ${passTypeId}`)
         }
 
-        const userId = session.client_reference_id || session.metadata?.user_id
-        if (!userId) {
-          throw new Error('No user ID found in session')
-        }
+        console.log('✅ Found pass type:', passType.name)
 
         // Record purchase
         const { error: purchaseError } = await supabase
@@ -107,6 +104,8 @@ serve(async (req: Request) => {
         if (purchaseError && !purchaseError.message.includes('duplicate key')) {
           throw purchaseError
         }
+
+        console.log('✅ Purchase recorded')
 
         // Create or update user pass
         const validFrom = new Date()
@@ -134,6 +133,7 @@ serve(async (req: Request) => {
             .eq('id', existingPass.id)
 
           if (updateError) throw updateError
+          console.log('✅ Updated existing pack pass')
         } else if (existingPass && passType.kind === 'unlimited') {
           // Extend unlimited pass
           const newValidUntil = new Date(Math.max(
@@ -151,6 +151,7 @@ serve(async (req: Request) => {
             .eq('id', existingPass.id)
 
           if (updateError) throw updateError
+          console.log('✅ Extended unlimited pass')
         } else {
           // Create new pass
           const { error: insertError } = await supabase
@@ -166,6 +167,7 @@ serve(async (req: Request) => {
             })
 
           if (insertError) throw insertError
+          console.log('✅ Created new pass')
         }
 
         // Broadcast wallet update via Realtime
@@ -176,7 +178,7 @@ serve(async (req: Request) => {
           payload: { user_id: userId, trigger: 'purchase_completed' }
         })
 
-        console.log('Successfully processed checkout session:', session.id)
+        console.log('✅ Successfully processed checkout session:', session.id)
         break
       }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Linking, Alert, Platform } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CreditCard, Plus, Clock, Check } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePasses } from '@/hooks/usePasses'
 import { createStripeCheckout, getPassTypes, type PassType } from '@/lib/api/passes'
 import { useLocalSearchParams } from 'expo-router'
+import { Vibration } from 'react-native'
 
 // Format price using Intl.NumberFormat
 function formatPrice(cents: number, currency: string): string {
@@ -31,12 +32,11 @@ export default function WalletScreen() {
   // Handle success/cancel from Stripe checkout
   useEffect(() => {
     if (success === 'true') {
-      console.log('✅ Payment successful, refreshing wallet data')
       Alert.alert('Payment Successful!', 'Your pass has been added to your wallet.', [
         { text: 'OK', onPress: () => refetch() }
       ])
+      Vibration.vibrate([0, 50, 100, 50]) // Vibrate for 1 second
     } else if (canceled === 'true') {
-      console.log('❌ Payment canceled')
       Alert.alert('Payment Canceled', 'Your payment was canceled. You can try again anytime.')
     }
   }, [success, canceled, refetch])
@@ -46,7 +46,10 @@ export default function WalletScreen() {
     const fetchPassTypes = async () => {
       try {
         setPassTypesLoading(true)
+        console.log('🔍 Fetching pass types...')
         const types = await getPassTypes()
+        console.log('🔍 Pass types received:', types)
+        console.log('🔍 Pass types count:', types.length)
         setPassTypes(types)
       } catch (error) {
         console.error('❌ Error fetching pass types:', error)
@@ -67,11 +70,7 @@ export default function WalletScreen() {
     setPurchasingPassId(passType.id)
 
     try {
-      console.log('🔄 Creating checkout session for:', passType.name, 'with price ID:', passType.stripe_price_id)
-      
       const checkoutUrl = await createStripeCheckout(passType)
-      
-      console.log('✅ Checkout URL created:', checkoutUrl)
       
       if (Platform.OS === 'web') {
         window.open(checkoutUrl, '_blank')
@@ -84,7 +83,7 @@ export default function WalletScreen() {
         }
       }
     } catch (error) {
-      console.error('❌ Error creating checkout session:', error)
+      console.error('Error creating checkout session:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       Alert.alert('Error', `Failed to create checkout session: ${errorMessage}`)
     } finally {
@@ -136,11 +135,9 @@ export default function WalletScreen() {
           </Text>
         </View>
 
-        <FlatList
-          data={passTypes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Card style={styles.passCard}>
+        <View style={styles.passList}>
+          {passTypes.map((item) => (
+            <Card key={item.id} style={styles.passCard}>
               <View style={styles.passHeader}>
                 <View style={styles.passInfo}>
                   <Text style={styles.passName}>{item.name}</Text>
@@ -171,9 +168,9 @@ export default function WalletScreen() {
                   <Text style={styles.priceSubtext}>
                     {item.kind === 'pack' && item.credits ? 
                       `${formatPrice(Math.round(item.price_amount_cents / item.credits), item.currency)} per class` : 
-                      item.kind === 'unlimited' ? (
-                        `per ${item.interval_count && item.interval_count > 1 ? `${item.interval_count} ` : ''}${item.interval || 'month'}`
-                      ) : 'Best value'
+                      item.kind === 'unlimited' ? 
+                        'Unlimited classes' : 
+                        'Best value'
                     }
                   </Text>
                 </View>
@@ -192,10 +189,8 @@ export default function WalletScreen() {
                 </View>
               )}
             </Card>
-          )}
-          scrollEnabled={false}
-          contentContainerStyle={styles.passList}
-        />
+          ))}
+        </View>
 
         {passTypes.length === 0 && !passTypesLoading && (
           <Card style={styles.errorCard}>
@@ -252,7 +247,6 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text,
   },
-
   section: {
     marginBottom: 20,
   },
@@ -268,6 +262,7 @@ const styles = StyleSheet.create({
   },
   passList: {
     gap: 16,
+    marginBottom: 20,
   },
   passCard: {
     position: 'relative',

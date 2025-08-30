@@ -15,6 +15,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    flowType: 'pkce',
+    debug: true, // Enable debug logging
   },
   global: {
     headers: {

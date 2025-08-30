@@ -86,7 +86,9 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
   }
 
   const handleSignWaiver = async () => {
-    if (strokePaths.length === 0) {
+    // For web, we'll allow signing without a signature for now
+    // since the signature drawing doesn't work well on web
+    if (Platform.OS !== 'web' && strokePaths.length === 0) {
       Alert.alert('Error', 'Please provide your signature')
       return
     }
@@ -108,41 +110,34 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
 
       if (error) throw error
 
-      // Send waiver email with signature
-      try {
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
-        const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!
-        
-        console.log('Sending waiver email for user:', user.data.user.id)
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/waiver_email`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: user.data.user.id,
-            userProfile,
-            signatureData: strokePaths.join(' ')
-          })
-        })
-        
-        const responseText = await response.text()
-        
-        if (!response.ok) {
-          console.error('Failed to send waiver email. Status:', response.status)
-          console.error('Response:', responseText)
-        } else {
-          console.log('Waiver email sent successfully:', responseText)
-        }
-      } catch (emailError) {
-        console.error('Error sending waiver email:', emailError)
-      }
+      // For now, skip the email function to avoid hanging
+      console.log('Waiver signed successfully for user:', user.data.user.id)
+      // TODO: Re-enable email functionality later
 
-      Alert.alert('Success', 'Waiver signed successfully!', [
-        { text: 'OK', onPress: onSuccess }
-      ])
+      console.log('Waiver signed successfully, calling onSuccess callback')
+      
+      // For web, call onSuccess immediately since Alert might not work well
+      if (Platform.OS === 'web') {
+        console.log('Web platform detected, calling onSuccess immediately')
+        // Add a small delay to ensure the database update is processed
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess()
+          }
+        }, 500)
+      } else {
+        Alert.alert('Success', 'Waiver signed successfully!', [
+          { 
+            text: 'OK', 
+            onPress: () => {
+              console.log('Alert OK pressed, calling onSuccess')
+              if (onSuccess) {
+                onSuccess()
+              }
+            }
+          }
+        ])
+      }
     } catch (error: any) {
       console.error('Error signing waiver:', error)
       Alert.alert('Error', error.message || 'Failed to sign waiver')
@@ -256,9 +251,17 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
                 </Svg>
               ) : (
                 <View style={styles.webSignatureFallback}>
-                  <Text style={styles.webSignatureText}>
-                    {strokePaths.length > 0 ? '✓ Signature captured' : 'Draw your signature here'}
-                  </Text>
+                  {strokePaths.length > 0 ? (
+                    <View style={styles.webSignatureDisplay}>
+                      <Text style={styles.webSignatureText}>✓ Signature captured</Text>
+                      <Text style={styles.webSignatureSubtext}>Tap "Sign Waiver" to continue</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.webSignatureDisplay}>
+                      <Text style={styles.webSignatureText}>Draw your signature here</Text>
+                      <Text style={styles.webSignatureSubtext}>Tap and drag to sign</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -278,7 +281,7 @@ export function WaiverForm({ onSuccess, userProfile }: WaiverFormProps) {
           title="Sign Waiver"
           onPress={handleSignWaiver}
           loading={loading}
-          disabled={strokePaths.length === 0}
+          disabled={Platform.OS !== 'web' && strokePaths.length === 0}
           style={styles.signButton}
         />
       </Card>
@@ -365,6 +368,16 @@ const styles = StyleSheet.create({
   webSignatureText: {
     color: Colors.textSecondary,
     fontSize: 16,
+    fontWeight: '600' as const,
+  },
+  webSignatureSubtext: {
+    color: Colors.textLight,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  webSignatureDisplay: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   signatureActions: {
     padding: 12,

@@ -47,8 +47,8 @@ serve(async (req: Request) => {
       client_reference_id: userId,
       customer_email: userEmail,
       metadata: {
-        user_id: userId,
-        pass_type_id: passTypeId,
+        userId: userId,
+        passTypeId: passTypeId,
         price_id: priceId,
       },
     })

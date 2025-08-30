@@ -8,16 +8,13 @@ export interface ActivePass {
 }
 
 export async function getActivePass(): Promise<ActivePass | null> {
-  console.log('🔄 Fetching active pass...')
-  
   const { data, error } = await supabase.rpc('get_active_pass')
   
   if (error) {
-    console.error('❌ Error fetching active pass:', error)
+    console.error('Error fetching active pass:', error)
     throw error
   }
   
-  console.log('✅ Active pass fetched:', data)
   return data
 }
 
@@ -30,38 +27,31 @@ export interface PassType {
   stripe_price_id: string
   price_amount_cents: number
   currency: string
-  is_subscription: boolean
-  interval: string | null
-  interval_count: number | null
   sort_order: number
   active: boolean
 }
 
 export async function getPassTypes(): Promise<PassType[]> {
-  console.log('🔄 Fetching pass types from database...')
-  
+  console.log('🔍 getPassTypes: Starting database query...')
   const { data, error } = await supabase
     .from('pass_types')
-    .select('id,name,kind,credits,duration_days,stripe_price_id,price_amount_cents,currency,is_subscription,interval,interval_count,sort_order,active')
+    .select('id,name,kind,credits,duration_days,stripe_price_id,price_amount_cents,currency,sort_order,active')
     .eq('active', true)
     .order('sort_order', { ascending: true })
+  
+  console.log('🔍 getPassTypes: Database response:', { data, error })
   
   if (error) {
     console.error('❌ Error fetching pass types:', error)
     throw new Error(`Failed to fetch pass types: ${error.message}`)
   }
-  
-  console.log('✅ Pass types fetched:', data?.length, 'types')
+
+  // Return the data directly since it matches our interface
+  console.log('🔍 getPassTypes: Returning data:', data || [])
   return data || []
 }
 
-
-
-
-
 export async function createStripeCheckout(passType: PassType) {
-  console.log('🔄 Creating Stripe checkout session...')
-  
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     throw new Error('User not authenticated')
@@ -78,7 +68,7 @@ export async function createStripeCheckout(passType: PassType) {
   })
 
   if (error) {
-    console.error('❌ Error creating checkout session:', error)
+    console.error('Error creating checkout session:', error)
     throw new Error(`Failed to create checkout session: ${error.message}`)
   }
 
@@ -86,6 +76,5 @@ export async function createStripeCheckout(passType: PassType) {
     throw new Error('No checkout URL returned')
   }
 
-  console.log('✅ Checkout session created successfully')
   return data.url
 }

@@ -1,14 +1,22 @@
-import React from 'react'
-import { View, Text, StyleSheet, ScrollView } from 'react-native'
+import React, { useState } from 'react'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Flame, Calendar, Trophy, Target } from 'lucide-react-native'
+import { Flame, Calendar, Trophy, Target, Star, Edit3 } from 'lucide-react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Card } from '@/components/ui/Card'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
+import { useStreaks } from '@/hooks/useStreaks'
+import { useUpdateMonthlyGoal } from '@/hooks/useProfile'
 
 export default function StreaksScreen() {
   const { user } = useAuth()
+  const [calendarTimeframe, setCalendarTimeframe] = useState<'weekly' | 'monthly' | '3_months' | 'yearly'>('3_months')
+  const { data: streakData, isLoading, error } = useStreaks(calendarTimeframe)
+  const updateMonthlyGoal = useUpdateMonthlyGoal()
+  const [isEditingGoal, setIsEditingGoal] = useState(false)
+  const [newGoal, setNewGoal] = useState('')
 
   if (!user) {
     return (
@@ -17,6 +25,27 @@ export default function StreaksScreen() {
           <Text style={styles.authTitle}>Sign In Required</Text>
           <Text style={styles.authText}>
             Please sign in to view your hot streaks and progress.
+          </Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <LoadingSpinner />
+      </SafeAreaView>
+    )
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Unable to Load Streaks</Text>
+          <Text style={styles.errorText}>
+            Please try again later.
           </Text>
         </View>
       </SafeAreaView>
@@ -43,9 +72,16 @@ export default function StreaksScreen() {
               <Flame size={32} color={Colors.white} />
               <Text style={styles.streakTitle}>Current Streak</Text>
             </View>
-            <Text style={styles.streakNumber}>7</Text>
+            <Text style={styles.streakNumber}>{streakData?.currentStreak || 0}</Text>
             <Text style={styles.streakLabel}>Days in a row</Text>
-            <Text style={styles.streakSubtext}>Keep it up! You're on fire 🔥</Text>
+            <Text style={styles.streakSubtext}>
+              {streakData?.currentStreak === 0 
+                ? "Start your streak today! 🔥" 
+                : streakData?.currentStreak >= 7 
+                  ? "You're on fire! 🔥" 
+                  : "Keep it up! 🔥"
+              }
+            </Text>
           </LinearGradient>
         </Card>
 
@@ -53,114 +89,268 @@ export default function StreaksScreen() {
         <View style={styles.statsGrid}>
           <Card style={styles.statCard}>
             <Calendar size={24} color={Colors.primary} />
-            <Text style={styles.statNumber}>23</Text>
+            <Text style={styles.statNumber}>{streakData?.thisMonthClasses || 0}</Text>
             <Text style={styles.statLabel}>This Month</Text>
           </Card>
 
           <Card style={styles.statCard}>
             <Trophy size={24} color={Colors.warning} />
-            <Text style={styles.statNumber}>12</Text>
+            <Text style={styles.statNumber}>{streakData?.bestStreak || 0}</Text>
             <Text style={styles.statLabel}>Best Streak</Text>
           </Card>
 
           <Card style={styles.statCard}>
             <Target size={24} color={Colors.success} />
-            <Text style={styles.statNumber}>156</Text>
+            <Text style={styles.statNumber}>{streakData?.totalClasses || 0}</Text>
             <Text style={styles.statLabel}>Total Classes</Text>
           </Card>
 
           <Card style={styles.statCard}>
             <Flame size={24} color={Colors.error} />
-            <Text style={styles.statNumber}>3</Text>
-            <Text style={styles.statLabel}>Streak Count</Text>
+            <Text style={styles.statNumber}>{streakData?.currentStreak || 0}</Text>
+            <Text style={styles.statLabel}>Current Streak</Text>
           </Card>
         </View>
 
         {/* Monthly Progress */}
         <Card style={styles.progressCard}>
-          <Text style={styles.progressTitle}>December Progress</Text>
-          <Text style={styles.progressSubtitle}>23 classes • Goal: 25</Text>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressTitle}>Monthly Progress</Text>
+            <TouchableOpacity
+              style={styles.editGoalButton}
+              onPress={() => {
+                setNewGoal(streakData?.monthlyGoal?.toString() || '25')
+                setIsEditingGoal(true)
+              }}
+            >
+              <Edit3 size={16} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+                     {isEditingGoal ? (
+             <View style={styles.goalEditContainer}>
+               {updateMonthlyGoal.isPending && (
+                 <Text style={styles.savingText}>Saving...</Text>
+               )}
+               <Text style={styles.goalEditLabel}>Set your monthly goal:</Text>
+               <View style={styles.goalEditRow}>
+                 <TextInput
+                   style={styles.goalInput}
+                   value={newGoal}
+                   onChangeText={setNewGoal}
+                   keyboardType="numeric"
+                   placeholder="25"
+                   maxLength={3}
+                   autoFocus={true}
+                 />
+                 <Text style={styles.goalEditText}>classes</Text>
+               </View>
+               <View style={styles.goalEditButtons}>
+                 <TouchableOpacity
+                   style={styles.goalEditButton}
+                   onPress={() => setIsEditingGoal(false)}
+                   disabled={updateMonthlyGoal.isPending}
+                 >
+                   <Text style={styles.goalEditButtonText}>Cancel</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity
+                   style={[
+                     styles.goalEditButton, 
+                     styles.goalEditButtonSave,
+                     updateMonthlyGoal.isPending && styles.goalEditButtonDisabled
+                   ]}
+                   onPress={() => {
+                     const goal = parseInt(newGoal)
+                     if (goal >= 1 && goal <= 100) {
+                       updateMonthlyGoal.mutate(goal, {
+                         onSuccess: () => {
+                           setIsEditingGoal(false)
+                           setNewGoal('')
+                         },
+                         onError: (error) => {
+                           Alert.alert('Error', 'Failed to update goal. Please try again.')
+                         }
+                       })
+                     } else {
+                       Alert.alert('Invalid Goal', 'Please enter a number between 1 and 100.')
+                     }
+                   }}
+                   disabled={updateMonthlyGoal.isPending}
+                 >
+                   <Text style={[
+                     styles.goalEditButtonText, 
+                     styles.goalEditButtonTextSave,
+                     updateMonthlyGoal.isPending && styles.goalEditButtonTextDisabled
+                   ]}>
+                     {updateMonthlyGoal.isPending ? 'Saving...' : 'Save'}
+                   </Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+           ) : (
+            <Text style={styles.progressSubtitle}>
+              {streakData?.thisMonthClasses || 0} classes • Goal: {streakData?.monthlyGoal || 25}
+            </Text>
+          )}
           
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: '92%' }]} />
+            <View 
+              style={[
+                styles.progressFill, 
+                { 
+                  width: `${Math.min(
+                    ((streakData?.thisMonthClasses || 0) / (streakData?.monthlyGoal || 25)) * 100, 
+                    100
+                  )}%` 
+                }
+              ]} 
+            />
           </View>
           
           <Text style={styles.progressText}>
-            You're 2 classes away from your monthly goal! 🎯
+            {(() => {
+              const remaining = (streakData?.monthlyGoal || 25) - (streakData?.thisMonthClasses || 0)
+              if (remaining <= 0) {
+                return "You've reached your monthly goal! 🎉"
+              } else if (remaining === 1) {
+                return "You're 1 class away from your monthly goal! 🎯"
+              } else {
+                return `You're ${remaining} classes away from your monthly goal! 🎯`
+              }
+            })()}
           </Text>
         </Card>
 
         {/* Calendar Heatmap Placeholder */}
         <Card style={styles.heatmapCard}>
           <Text style={styles.heatmapTitle}>Activity Calendar</Text>
-          <Text style={styles.heatmapSubtitle}>Your practice over the last 3 months</Text>
           
-          <View style={styles.heatmapGrid}>
-            {Array.from({ length: 90 }, (_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.heatmapDay,
-                  {
-                    backgroundColor: Math.random() > 0.7 
-                      ? Colors.primary 
-                      : Math.random() > 0.5 
-                        ? Colors.primaryLight 
-                        : Colors.border
-                  }
-                ]}
-              />
-            ))}
+          {/* Time Frame Filter */}
+          <View style={styles.timeframeFilter}>
+            <TouchableOpacity
+              style={[
+                styles.timeframeButton,
+                calendarTimeframe === 'weekly' && styles.timeframeButtonActive
+              ]}
+              onPress={() => setCalendarTimeframe('weekly')}
+            >
+              <Text style={[
+                styles.timeframeButtonText,
+                calendarTimeframe === 'weekly' && styles.timeframeButtonTextActive
+              ]}>
+                Weekly
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.timeframeButton,
+                calendarTimeframe === 'monthly' && styles.timeframeButtonActive
+              ]}
+              onPress={() => setCalendarTimeframe('monthly')}
+            >
+              <Text style={[
+                styles.timeframeButtonText,
+                calendarTimeframe === 'monthly' && styles.timeframeButtonTextActive
+              ]}>
+                Monthly
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.timeframeButton,
+                calendarTimeframe === '3_months' && styles.timeframeButtonActive
+              ]}
+              onPress={() => setCalendarTimeframe('3_months')}
+            >
+              <Text style={[
+                styles.timeframeButtonText,
+                calendarTimeframe === '3_months' && styles.timeframeButtonTextActive
+              ]}>
+                3 Months
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.timeframeButton,
+                calendarTimeframe === 'yearly' && styles.timeframeButtonActive
+              ]}
+              onPress={() => setCalendarTimeframe('yearly')}
+            >
+              <Text style={[
+                styles.timeframeButtonText,
+                calendarTimeframe === 'yearly' && styles.timeframeButtonTextActive
+              ]}>
+                Yearly
+              </Text>
+            </TouchableOpacity>
           </View>
           
-          <View style={styles.heatmapLegend}>
-            <Text style={styles.legendText}>Less</Text>
-            <View style={styles.legendDots}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.border }]} />
-              <View style={[styles.legendDot, { backgroundColor: Colors.primaryLight }]} />
-              <View style={[styles.legendDot, { backgroundColor: Colors.primaryMedium }]} />
-              <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
-            </View>
-            <Text style={styles.legendText}>More</Text>
-          </View>
+          <Text style={styles.heatmapSubtitle}>
+            {calendarTimeframe === 'weekly' && 'Your practice this week'}
+            {calendarTimeframe === 'monthly' && 'Your practice this month'}
+            {calendarTimeframe === '3_months' && 'Your practice over the last 3 months'}
+            {calendarTimeframe === 'yearly' && 'Your practice this year'}
+          </Text>
+          
+                     <View style={styles.heatmapGrid}>
+             {streakData?.activityCalendar.map((day, i) => (
+               <View
+                 key={i}
+                 style={[
+                   styles.heatmapDay,
+                   { backgroundColor: day.count > 0 ? Colors.primary : Colors.border }
+                 ]}
+               />
+             ))}
+           </View>
+          
+          
         </Card>
 
         {/* Achievements */}
         <Card style={styles.achievementsCard}>
           <Text style={styles.achievementsTitle}>Recent Achievements</Text>
           
-          <View style={styles.achievement}>
-            <View style={styles.achievementIcon}>
-              <Flame size={20} color={Colors.primary} />
-            </View>
-            <View style={styles.achievementContent}>
-              <Text style={styles.achievementName}>Week Warrior</Text>
-              <Text style={styles.achievementDesc}>Completed 7 classes in a week</Text>
-            </View>
-            <Text style={styles.achievementDate}>Dec 15</Text>
-          </View>
+          {streakData?.achievements && streakData.achievements.length > 0 ? (
+            streakData.achievements.map((achievement) => {
+              const getIcon = () => {
+                switch (achievement.icon) {
+                  case 'flame':
+                    return <Flame size={20} color={Colors.primary} />
+                  case 'trophy':
+                    return <Trophy size={20} color={Colors.warning} />
+                  case 'target':
+                    return <Target size={20} color={Colors.success} />
+                  case 'star':
+                    return <Star size={20} color={Colors.primary} />
+                  default:
+                    return <Trophy size={20} color={Colors.primary} />
+                }
+              }
 
-          <View style={styles.achievement}>
-            <View style={styles.achievementIcon}>
-              <Trophy size={20} color={Colors.warning} />
+              return (
+                <View key={achievement.id} style={styles.achievement}>
+                  <View style={styles.achievementIcon}>
+                    {getIcon()}
+                  </View>
+                  <View style={styles.achievementContent}>
+                    <Text style={styles.achievementName}>{achievement.name}</Text>
+                    <Text style={styles.achievementDesc}>{achievement.description}</Text>
+                  </View>
+                  <Text style={styles.achievementDate}>{achievement.date}</Text>
+                </View>
+              )
+            })
+          ) : (
+            <View style={styles.noAchievements}>
+              <Text style={styles.noAchievementsText}>
+                No achievements yet. Keep attending classes to unlock achievements! 🎯
+              </Text>
             </View>
-            <View style={styles.achievementContent}>
-              <Text style={styles.achievementName}>Consistency King</Text>
-              <Text style={styles.achievementDesc}>10-day streak achieved</Text>
-            </View>
-            <Text style={styles.achievementDate}>Dec 10</Text>
-          </View>
-
-          <View style={styles.achievement}>
-            <View style={styles.achievementIcon}>
-              <Target size={20} color={Colors.success} />
-            </View>
-            <View style={styles.achievementContent}>
-              <Text style={styles.achievementName}>Century Club</Text>
-              <Text style={styles.achievementDesc}>Completed 100 total classes</Text>
-            </View>
-            <Text style={styles.achievementDate}>Dec 1</Text>
-          </View>
+          )}
         </Card>
       </ScrollView>
     </SafeAreaView>
@@ -252,11 +442,19 @@ const styles = StyleSheet.create({
   progressCard: {
     marginBottom: 20,
   },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   progressTitle: {
     fontSize: 18,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 4,
+  },
+  editGoalButton: {
+    padding: 4,
   },
   progressSubtitle: {
     fontSize: 14,
@@ -285,7 +483,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: 12,
+  },
+  timeframeFilter: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  timeframeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  timeframeButtonActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  timeframeButtonText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  timeframeButtonTextActive: {
+    color: Colors.white,
   },
   heatmapSubtitle: {
     fontSize: 14,
@@ -384,4 +607,101 @@ const styles = StyleSheet.create({
     textAlign: 'center' as const,
     lineHeight: 24,
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    textAlign: 'center' as const,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 24,
+  },
+  noAchievements: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noAchievementsText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 20,
+  },
+  goalEditContainer: {
+    marginBottom: 16,
+  },
+  goalEditLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  goalEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  goalInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    color: Colors.text,
+    backgroundColor: Colors.surface,
+    width: 80,
+    marginRight: 8,
+  },
+  goalEditText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  goalEditButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  goalEditButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+  },
+  goalEditButtonSave: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  goalEditButtonText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+     goalEditButtonTextSave: {
+     color: Colors.white,
+   },
+   goalEditButtonDisabled: {
+     opacity: 0.5,
+   },
+   goalEditButtonTextDisabled: {
+     opacity: 0.7,
+   },
+   savingText: {
+     fontSize: 14,
+     color: Colors.primary,
+     fontWeight: '600' as const,
+     textAlign: 'center' as const,
+     marginBottom: 8,
+   },
 })

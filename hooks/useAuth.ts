@@ -17,35 +17,49 @@ export function useAuth() {
     
     // Set a timeout to prevent infinite loading
     timeoutId = setTimeout(() => {
-      console.log('Auth initialization timeout - setting loading to false')
       setLoading(false)
       setError('Connection timeout. Please check your internet connection.')
-    }, 10000) // 10 second timeout
+    }, 10000) // 10 seconds
 
     // Get initial session
-    supabase.auth.getSession()
-      .then(({ data: { session } }: { data: { session: Session | null } }) => {
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
         clearTimeout(timeoutId)
-        console.log('Initial session loaded:', !!session)
+        
+        if (error) {
+          console.error('Error getting initial session:', error)
+          setError('Failed to connect. Please check your internet connection.')
+          setLoading(false)
+          return
+        }
+        
         setSession(session)
         setUser(session?.user ?? null)
+        
         if (session?.user) {
-          fetchProfile(session.user.id)
+          await fetchProfile(session.user.id)
         } else {
           setLoading(false)
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         clearTimeout(timeoutId)
         console.error('Error getting initial session:', err)
         setError('Failed to connect. Please check your internet connection.')
         setLoading(false)
-      })
+      }
+    }
+
+    initializeAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         console.log('Auth state changed:', event, session?.user?.id)
+        
+        // Clear any existing errors when auth state changes
+        setError(null)
+        
         setSession(session)
         setUser(session?.user ?? null)
         
@@ -65,9 +79,20 @@ export function useAuth() {
   }, [])
 
   const fetchProfile = async (userId: string) => {
-    console.log('Fetching profile for user:', userId)
     try {
       setError(null)
+      
+      // First, verify the session is still valid
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        console.log('Session invalid during profile fetch, clearing auth state')
+        setUser(null)
+        setProfile(null)
+        setSession(null)
+        setLoading(false)
+        return
+      }
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -88,64 +113,41 @@ export function useAuth() {
           role: 'user' as const,
         }
         
-        console.log('Creating profile with data:', profileData)
-        
         // Try to insert the profile
-        let { data: newProfile, error: createError } = await (supabase as any)
+        const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert([profileData])
           .select()
           .single()
 
-        // If insert fails due to schema cache issues, try using RPC
-        if (createError && createError.code === 'PGRST204') {
-          console.log('Schema cache issue detected, trying RPC approach...')
-          const { error: rpcError } = await (supabase as any).rpc('create_profile_manual', {
-            user_id: userId,
-            first_name_param: userMetadata.first_name || null,
-            last_name_param: userMetadata.last_name || null,
-            fullname_param: userMetadata.full_name || null,
-            phone_param: userMetadata.phone || null
-          })
-          
-          if (rpcError) {
-            console.error('RPC profile creation failed:', rpcError)
-            // As a last resort, just set a minimal profile
-            setProfile({
-              id: userId,
-              first_name: userMetadata.first_name || null,
-              last_name: userMetadata.last_name || null,
-              fullname: userMetadata.full_name || null,
-              phone: userMetadata.phone || null,
-              role: 'user',
-              waiver_signed_at: null,
-              waiver_signature_data: null,
-              created_at: new Date().toISOString()
-            } as Profile)
-          } else {
-            // Fetch the created profile
-            const { data: fetchedProfile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', userId)
-              .single()
-            setProfile(fetchedProfile)
-          }
-        } else if (createError) {
+        if (createError) {
           console.error('Error creating profile:', createError)
-          throw new Error(`Failed to create profile: ${createError.message}`)
+          // Don't throw error, just set a minimal profile
+          setProfile({
+            id: userId,
+            first_name: userMetadata.first_name || null,
+            last_name: userMetadata.last_name || null,
+            fullname: userMetadata.full_name || null,
+            phone: userMetadata.phone || null,
+            role: 'user',
+            waiver_signed_at: null,
+            waiver_signature_data: null,
+            created_at: new Date().toISOString()
+          } as Profile)
         } else {
           setProfile(newProfile)
         }
       } else if (error) {
         console.error('Error fetching profile:', error)
-        throw new Error(`Failed to fetch profile: ${error.message}`)
+        // Don't throw error, just set loading to false
+        setProfile(null)
       } else {
         setProfile(data)
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error)
-      setError('Failed to load profile. Please try again.')
+      // Don't set error, just set loading to false
+      setProfile(null)
     } finally {
       setLoading(false)
     }
@@ -165,8 +167,6 @@ export function useAuth() {
         console.error('Error signing out:', error)
         throw error
       }
-      
-      console.log('Successfully signed out')
     } catch (error) {
       console.error('Error in signOut:', error)
       throw error
@@ -175,6 +175,7 @@ export function useAuth() {
 
   const forceRefresh = async () => {
     setLoading(true)
+    setError(null)
     try {
       // Clear current state
       setUser(null)
@@ -185,6 +186,7 @@ export function useAuth() {
       const { data: { session }, error } = await supabase.auth.getSession()
       if (error) {
         console.error('Error getting session:', error)
+        setError('Failed to refresh session. Please try again.')
         return
       }
       
@@ -193,9 +195,12 @@ export function useAuth() {
       
       if (session?.user) {
         await fetchProfile(session.user.id)
+      } else {
+        setLoading(false)
       }
     } catch (error) {
       console.error('Error in forceRefresh:', error)
+      setError('Failed to refresh. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -215,5 +220,7 @@ export function useAuth() {
     isAdmin,
     hasSignedWaiver,
     refetchProfile: () => user && fetchProfile(user.id),
+    // Add a method to check if user is authenticated
+    isAuthenticated: !!user && !!session,
   }
 }

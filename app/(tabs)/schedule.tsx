@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { format, addDays, startOfDay, isSameDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, Filter } from 'lucide-react-native'
@@ -15,7 +15,6 @@ const FILTER_CHIPS = [
   { id: 'morning', label: 'Morning' },
   { id: 'evening', label: 'Evening' },
   { id: 'beginner', label: 'Beginner' },
-  { id: '60min', label: '60min' },
   { id: 'favorites', label: 'Favorites' },
 ]
 
@@ -31,7 +30,8 @@ export default function ScheduleScreen() {
     cancelBooking, 
     toggleFavorite,
     isBooking,
-    isCancelling 
+    isCancelling,
+    error: scheduleError
   } = useSchedule(selectedDate)
   
   const { activePass } = usePasses()
@@ -50,8 +50,6 @@ export default function ScheduleScreen() {
         return parseInt(classItem.start_time.split(':')[0]) >= 17
       case 'beginner':
         return classItem.level?.toLowerCase().includes('beginner')
-      case '60min':
-        return classItem.duration_min === 60
       case 'favorites':
         return classItem.is_favorite
       default:
@@ -64,15 +62,41 @@ export default function ScheduleScreen() {
   }
 
   const handleBookClass = (classId: string) => {
-    if (!canBook) return
+    if (!canBook) {
+      if (!user) {
+        Alert.alert('Sign In Required', 'Please sign in to book classes.')
+      } else if (!hasSignedWaiver) {
+        Alert.alert('Waiver Required', 'Please complete your waiver before booking classes.')
+      } else if (!activePass) {
+        Alert.alert('No Active Pass', 'Please purchase a pass to book classes.')
+      } else if (!activePass.is_unlimited && activePass.remaining_credits <= 0) {
+        Alert.alert('No Credits Remaining', 'Please purchase more credits to book classes.')
+      }
+      return
+    }
+    
     bookClass(classId)
   }
 
   const handleCancelBooking = (bookingId: string) => {
-    cancelBooking(bookingId)
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking? You\'ll get your credit back if it\'s more than 2 hours before class.',
+      [
+        { text: 'Keep Booking', style: 'cancel' },
+        { 
+          text: 'Cancel Booking', 
+          style: 'destructive',
+          onPress: () => {
+            cancelBooking(bookingId)
+          }
+        }
+      ]
+    )
   }
 
   const handleToggleFavorite = (classId: string, isFavorite: boolean) => {
+    console.log('🔍 Toggle favorite clicked:', { classId, isFavorite })
     toggleFavorite({ classId, isFavorite })
   }
 
@@ -92,7 +116,16 @@ export default function ScheduleScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Class Schedule</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Class Schedule</Text>
+          {activePass && (
+            <View style={styles.passIndicator}>
+              <Text style={styles.passText}>
+                {activePass.is_unlimited ? '∞' : `${activePass.remaining_credits} credits`}
+              </Text>
+            </View>
+          )}
+        </View>
         <TouchableOpacity style={styles.filterButton}>
           <Filter size={20} color={Colors.primary} />
         </TouchableOpacity>
@@ -209,6 +242,14 @@ export default function ScheduleScreen() {
           </Text>
         </View>
       )}
+
+      {scheduleError && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>
+            Unable to load schedule. Please try again.
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -224,6 +265,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  titleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  passIndicator: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  passText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600' as const,
   },
   title: {
     fontSize: 28,
@@ -333,6 +391,19 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '600' as const,
     textAlign: 'center' as const,
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 16,
+    margin: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  errorBannerText: {
+    color: Colors.error,
+    textAlign: 'center' as const,
+    fontWeight: '600' as const,
   },
   authContainer: {
     flex: 1,

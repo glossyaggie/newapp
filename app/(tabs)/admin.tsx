@@ -1,17 +1,25 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Plus, Calendar, Users, Settings, BarChart3, Upload } from 'lucide-react-native'
+import { Plus, Calendar, Users, Settings, BarChart3, Upload, Gift } from 'lucide-react-native'
 import { Card } from '@/components/ui/Card'
 import { Colors } from '@/constants/colors'
 import { useAuth } from '@/hooks/useAuth'
-import { AddClassForm } from '@/components/AddClassForm'
+import { useAdminStats } from '@/hooks/useAdmin'
 import { BulkScheduleUpload } from '@/components/BulkScheduleUpload'
+import { AdminStatsPopup } from '@/components/AdminStatsPopup'
+import SpecialsManagement from '@/components/SpecialsManagement'
+import ClassCheckIn from '@/components/ClassCheckIn'
+import ManageClasses from '@/components/ManageClasses'
 
 export default function AdminScreen() {
   const { isAdmin } = useAuth()
-  const [showAddClass, setShowAddClass] = useState(false)
+  const { data: stats, isLoading: statsLoading } = useAdminStats()
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [showStatsPopup, setShowStatsPopup] = useState(false)
+  const [showSpecials, setShowSpecials] = useState(false)
+  const [showCheckIn, setShowCheckIn] = useState(false)
+  const [showManageClasses, setShowManageClasses] = useState(false)
 
   if (!isAdmin) {
     return (
@@ -36,38 +44,39 @@ export default function AdminScreen() {
 
         {/* Quick Stats */}
         <View style={styles.statsGrid}>
-          <Card style={styles.statCard}>
-            <Users size={24} color={Colors.primary} />
-            <Text style={styles.statNumber}>142</Text>
-            <Text style={styles.statLabel}>Active Members</Text>
-          </Card>
+          <TouchableOpacity 
+            style={styles.statCard}
+            onPress={() => setShowStatsPopup(true)}
+          >
+            <Card style={styles.statCardInner}>
+              <Users size={24} color={Colors.primary} />
+              <Text style={styles.statNumber}>
+                {statsLoading ? '...' : stats?.totalAccounts || 0}
+              </Text>
+                             <Text style={styles.statLabel}>Total Members</Text>
+              <Text style={styles.statSubtext}>Tap for details</Text>
+            </Card>
+          </TouchableOpacity>
 
           <Card style={styles.statCard}>
             <Calendar size={24} color={Colors.secondary} />
-            <Text style={styles.statNumber}>28</Text>
+            <Text style={styles.statNumber}>
+              {statsLoading ? '...' : stats?.classesToday || 0}
+            </Text>
             <Text style={styles.statLabel}>Classes Today</Text>
           </Card>
 
           <Card style={styles.statCard}>
             <BarChart3 size={24} color={Colors.success} />
-            <Text style={styles.statNumber}>89%</Text>
+            <Text style={styles.statNumber}>
+              {statsLoading ? '...' : `${stats?.avgCapacity || 0}%`}
+            </Text>
             <Text style={styles.statLabel}>Avg Capacity</Text>
           </Card>
         </View>
 
         {/* Admin Actions */}
         <View style={styles.actionsGrid}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => setShowAddClass(!showAddClass)}
-          >
-            <Card style={styles.actionCardInner}>
-              <Plus size={32} color={Colors.primary} />
-              <Text style={styles.actionTitle}>Add Class</Text>
-              <Text style={styles.actionSubtitle}>Create a new class for the schedule</Text>
-            </Card>
-          </TouchableOpacity>
-
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => setShowBulkUpload(!showBulkUpload)}
@@ -79,7 +88,10 @@ export default function AdminScreen() {
             </Card>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => setShowManageClasses(!showManageClasses)}
+          >
             <Card style={styles.actionCardInner}>
               <Calendar size={32} color={Colors.warning} />
               <Text style={styles.actionTitle}>Manage Classes</Text>
@@ -110,15 +122,29 @@ export default function AdminScreen() {
               <Text style={styles.actionSubtitle}>Studio & app configuration</Text>
             </Card>
           </TouchableOpacity>
-        </View>
 
-        {/* Add Class Form */}
-        {showAddClass && (
-          <AddClassForm 
-            onSuccess={() => setShowAddClass(false)}
-            onCancel={() => setShowAddClass(false)}
-          />
-        )}
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => setShowSpecials(!showSpecials)}
+          >
+            <Card style={styles.actionCardInner}>
+              <Gift size={32} color={Colors.primary} />
+              <Text style={styles.actionTitle}>Weekly Specials</Text>
+              <Text style={styles.actionSubtitle}>Manage promotional offers</Text>
+            </Card>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => setShowCheckIn(!showCheckIn)}
+          >
+            <Card style={styles.actionCardInner}>
+              <Users size={32} color={Colors.success} />
+              <Text style={styles.actionTitle}>Class Check-in</Text>
+              <Text style={styles.actionSubtitle}>Manage attendance & QR codes</Text>
+            </Card>
+          </TouchableOpacity>
+        </View>
 
         {/* Bulk Upload Form */}
         {showBulkUpload && (
@@ -126,6 +152,29 @@ export default function AdminScreen() {
             onSuccess={() => setShowBulkUpload(false)}
             onCancel={() => setShowBulkUpload(false)}
           />
+        )}
+
+        {/* Manage Classes */}
+        {showManageClasses && (
+          <ManageClasses />
+        )}
+
+        {/* Stats Popup */}
+        <AdminStatsPopup
+          visible={showStatsPopup}
+          onClose={() => setShowStatsPopup(false)}
+          stats={stats}
+          isLoading={statsLoading}
+        />
+
+        {/* Specials Management */}
+        {showSpecials && (
+          <SpecialsManagement />
+        )}
+
+        {/* Class Check-in */}
+        {showCheckIn && (
+          <ClassCheckIn />
         )}
 
         {/* Recent Activity */}
@@ -208,6 +257,8 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
+  },
+  statCardInner: {
     alignItems: 'center',
     padding: 16,
   },
@@ -222,6 +273,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center' as const,
+  },
+  statSubtext: {
+    fontSize: 10,
+    color: Colors.textLight,
+    textAlign: 'center' as const,
+    marginTop: 2,
   },
   actionsGrid: {
     flexDirection: 'row',

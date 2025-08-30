@@ -24,6 +24,7 @@ export function usePasses() {
     queryFn: async (): Promise<ActivePass> => {
       if (!user) return null
       
+      console.log('🔄 Fetching active pass for user:', user.id)
       const { data, error } = await supabase.rpc('get_active_pass')
       
       if (error) {
@@ -31,9 +32,12 @@ export function usePasses() {
         return null
       }
       
+      console.log('🔄 Active pass data:', data)
       return data
     },
     enabled: !!user,
+    staleTime: 0, // Always consider data stale
+    refetchOnWindowFocus: true,
   })
 
 

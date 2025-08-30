@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { Vibration, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { format } from 'date-fns'
@@ -26,6 +28,15 @@ export interface ClassWithBooking {
 export function useSchedule(selectedDate: Date) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+
+  // Refresh schedule every 30 seconds to remove finished classes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['schedule'] })
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [queryClient])
 
   const scheduleQuery = useQuery({
     queryKey: ['schedule', format(selectedDate, 'yyyy-MM-dd'), user?.id],
@@ -64,7 +75,26 @@ export function useSchedule(selectedDate: Date) {
         }
       }) || []
 
-      return transformedData
+      // Filter out classes that have already finished
+      const now = new Date()
+      const currentTime = now.toTimeString().slice(0, 5) // Get current time in HH:MM format
+      
+      const filteredData = transformedData.filter(classItem => {
+        // If the class date is today, check if it's finished
+        const classDate = new Date(classItem.date)
+        const today = new Date()
+        const isToday = classDate.toDateString() === today.toDateString()
+        
+        if (isToday) {
+          // Compare end time with current time
+          return classItem.end_time > currentTime
+        }
+        
+        // If it's a future date, keep it
+        return classDate >= today
+      })
+
+      return filteredData
     },
     enabled: !!selectedDate,
   })
@@ -82,6 +112,10 @@ export function useSchedule(selectedDate: Date) {
 
       return data
     },
+    onError: (error) => {
+      console.error('Booking failed:', error)
+      Vibration.vibrate([200, 100, 200]) // Error vibration pattern
+    },
     onSuccess: (data, classId) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['schedule'] })
@@ -89,6 +123,16 @@ export function useSchedule(selectedDate: Date) {
       queryClient.invalidateQueries({ queryKey: ['user-bookings'] })
       
       console.log('Class booked successfully:', data)
+      
+      // Show success message and vibrate
+      const response = data as any
+      if (response?.status === 'booked') {
+        Alert.alert('Class Booked! 🎉', 'You\'re all set for class!')
+        Vibration.vibrate([100, 50, 100]) // Success vibration pattern
+      } else if (response?.status === 'waitlist') {
+        Alert.alert('Added to Waitlist', 'The class is full, but you\'ve been added to the waitlist. You\'ll be notified if a spot opens up!')
+        Vibration.vibrate([100]) // Single vibration for waitlist
+      }
     },
   })
 
@@ -105,14 +149,20 @@ export function useSchedule(selectedDate: Date) {
 
       return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['schedule'] })
       queryClient.invalidateQueries({ queryKey: ['active-pass'] })
       queryClient.invalidateQueries({ queryKey: ['user-bookings'] })
       
       console.log('Booking cancelled successfully')
+      Alert.alert('Booking Cancelled', 'Your booking has been cancelled successfully.')
+      Vibration.vibrate([50, 50, 50]) // Short vibration pattern for cancellation
     },
+    onError: (error) => {
+      console.error('Cancellation failed:', error)
+      Vibration.vibrate([200, 100, 200]) // Error vibration pattern
+    }
   })
 
   const toggleFavoriteMutation = useMutation({

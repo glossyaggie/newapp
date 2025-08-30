@@ -82,6 +82,36 @@ CREATE TABLE class_bookings (
   UNIQUE(user_id, class_id)
 );
 
+-- Add check-in tracking to class_bookings
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE;
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS check_in_time TIMESTAMP;
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS check_in_method TEXT; -- 'qr' or 'manual'
+
+-- Create QR code tracking table
+CREATE TABLE IF NOT EXISTS class_qr_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id UUID REFERENCES class_schedule(id) ON DELETE CASCADE,
+  qr_code TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on QR codes table
+ALTER TABLE class_qr_codes ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for QR codes
+CREATE POLICY "Anyone can view active QR codes" ON class_qr_codes
+  FOR SELECT USING (expires_at > NOW());
+
+CREATE POLICY "Admins can manage QR codes" ON class_qr_codes
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
 -- Pass purchases (Stripe transaction log)
 CREATE TABLE pass_purchases (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -139,17 +169,20 @@ CREATE INDEX idx_class_bookings_user_id ON class_bookings(user_id);
 CREATE INDEX idx_class_bookings_class_id ON class_bookings(class_id);
 CREATE INDEX idx_favorites_user_id ON favorites(user_id);
 
--- Insert some default pass types
--- IMPORTANT: Replace these with your actual Stripe Price IDs from your Stripe dashboard
-INSERT INTO pass_types (name, kind, credits, duration_days, stripe_price_id, sort_order) VALUES
-  ('Single Class', 'pack', 1, 30, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_1', 1),
-  ('8-Class Pack', 'pack', 8, 90, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_2', 2),
-  ('16-Class Pack', 'pack', 16, 120, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_3', 3),
-  ('Unlimited Monthly', 'unlimited', NULL, 30, 'price_REPLACE_WITH_YOUR_ACTUAL_PRICE_ID_4', 4);
+-- Insert some default pass types with actual Stripe Price IDs
+INSERT INTO pass_types (name, kind, credits, duration_days, stripe_price_id, sort_order, active) VALUES
+  ('Single Class', 'pack', 1, 30, 'price_1S0r9bARpqh0Ut1y4lHGGuAT', 1, true),
+  ('5-Class Pack', 'pack', 5, 90, 'price_1S0vfBARpqh0Ut1ybKjeqehJ', 2, true),
+  ('10-Class Pack', 'pack', 10, 120, 'price_1S0rHLARpqh0Ut1ybWGa3ocf', 3, true),
+  ('25-Class Pack', 'pack', 25, 180, 'price_1S0rHqARpqh0Ut1ygGGaoqac', 4, true),
+  ('Weekly Unlimited', 'unlimited', NULL, 7, 'price_1S0rIRARpqh0Ut1yQkmz18xc', 5, true),
+  ('Monthly Unlimited', 'unlimited', NULL, 30, 'price_1S0rJlARpqh0Ut1yaeBEQVRf', 6, true),
+  ('VIP Monthly', 'unlimited', NULL, 30, 'price_1S0rKbARpqh0Ut1ydYwnH2Zy', 7, true),
+  ('VIP Yearly', 'unlimited', NULL, 365, 'price_1S0rLOARpqh0Ut1y2lbJ17g7', 8, true);
 
 -- Create a trigger to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, first_name, last_name, fullname, phone)
   VALUES (
@@ -166,7 +199,7 @@ EXCEPTION
     RAISE WARNING 'Failed to create profile for user %: %', NEW.id, SQLERRM;
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Drop existing trigger if it exists
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
@@ -175,3 +208,77 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- Weekly Specials Table
+CREATE TABLE IF NOT EXISTS weekly_specials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  discount_percentage INTEGER,
+  valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
+  valid_until DATE NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_by UUID REFERENCES auth.users(id)
+);
+
+-- Enable RLS
+ALTER TABLE weekly_specials ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for weekly_specials
+CREATE POLICY "Anyone can view active specials" ON weekly_specials
+  FOR SELECT USING (is_active = true AND CURRENT_DATE BETWEEN valid_from AND valid_until);
+
+CREATE POLICY "Admins can manage specials" ON weekly_specials
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE profiles.id = auth.uid() 
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Function to update the updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger for weekly_specials
+CREATE TRIGGER update_weekly_specials_updated_at 
+  BEFORE UPDATE ON weekly_specials 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Add check-in tracking to class_bookings
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS checked_in BOOLEAN DEFAULT FALSE;
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS check_in_time TIMESTAMP;
+ALTER TABLE class_bookings ADD COLUMN IF NOT EXISTS check_in_method TEXT; -- 'qr' or 'manual'
+
+-- Create QR code tracking table
+CREATE TABLE IF NOT EXISTS class_qr_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id UUID REFERENCES class_schedule(id) ON DELETE CASCADE,
+  qr_code TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on QR codes table
+ALTER TABLE class_qr_codes ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for QR codes
+CREATE POLICY "Anyone can view active QR codes" ON class_qr_codes
+  FOR SELECT USING (expires_at > NOW());
+
+CREATE POLICY "Admins can manage QR codes" ON class_qr_codes
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
